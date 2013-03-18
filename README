@@ -1,0 +1,42 @@
+dhcprelya is a lightweight DHCP relay agent written for Yandex company for
+high loaded routers with tens interfaces and thousands hosts behind them.
+
+It's fast, independed from any side libraries, and it does not turn on
+a promisc mode for listening interfaces. Plugins supported. With plugins
+you can implement any functionality. A command line options is compatible
+with ISC dhcrelay but extended.
+
+Some ideas was taken from Edwin's dhcprelay (net/dhcprelay in ports collection.
+which unfortunately has some shortages) and dhcpdump (net/dhcpdump).
+
+It's distributed under BSD license.
+
+HOW TO RUN
+There are two syntax. The first one is a ISC dhcrelay compatible:
+
+dhcprelya [-d] [-p<pidfile>] -A <packet_size> -c <hops_count>
+	-i<if1>... -i<ifN> <server1>... <serverN>
+
+-i	- an interfaces list that should be listened.
+server	- a servers list where request will be forward to.
+-A	- set maximum packet size. Default: 1400. It's more then enough.
+-c	- When hops counter in a DHCP packet more then this value,
+	  the packet is dropped. It prevets loops. Defaul: 10.
+
+A second one allows to use a configuration file:
+
+dhcprelya [-d] [-p<pidfile>] -f <config.file>
+
+Common options are:
+-d	- do not demonize and output debugging info onto terminal.
+-p	- use not default pid file. You can run more than one copy of
+	  dhcprelya with different pid files.
+
+See dhcprelya.conf-example for format.
+
+If an interface does not exist on this host, it'll be ignored. It's useful
+for only one config file for all routers with logical interfaces (vlanNN etc.).
+
+Any questions, bug reports and feature requests are welcome.
+
+Sergey Matveychuk <sem@FreeBSD.org>

@@ -1,0 +1,88 @@
+2012-12-03:
+	4.5 version
+	* destroy() in plugins for smooth shutdown.
+	* Change plugin functions declaration. Use more appropriate types.
+	* radius_plugin: get rid of freeradius-client library.
+	  Use a system libradius instead.
+	* radius_plugin: rename bind_interface option to bind_to and allow
+	  to specify an IP address there.
+
+2012-11-01:
+	4.4 version
+	* radius_plugin: send accounting only for DHCPACK packet.
+
+2012-09-02:
+	4.3 version
+	* Fix options string parsing
+	* Minor fix in radius_plugin
+	* Fix byte order for eh->ether_type
+
+2012-03-07:
+	4.2 version
+	* If there is no interface to listen, dhcprelya took 100% CPU.
+	* Fix memory leaks.
+	* Implement rps_limit opetion to protect a server from a packet storm.
+	* Fix checksum calculation in option82_plugin (thanks to Manuel Kasper).
+	* Allow specify a DHCP server port. Useful for testing. (Manuel Kasper)
+
+2009-07-16:
+	4.1 version
+	* In radius plugin: build NAS port as client IP, not random.
+
+2009-06-16:
+	4.0 version
+	* Be more RFC compliant:
+	  + don't change GIADDR if it's not 0.
+	  + don't save incoming interface for a client.
+	    detect it by GIADDR address. It's simplified
+	    code a lot.
+	  + don't use INADDR_BROADCAST for answers, but
+	    YIADDR instead (excluding bellow).
+	  + take into account a BROADCAST flag. If it's on,
+	    send an answer as a broadcast (both L2 & L3).
+	* Added option82 plugin. RFC 3046 implementation.
+	* Add a bind_interface option for radius plugin.
+
+2009-02-13:
+	3.0 version
+	* Add -A and -c options. They are ISC dhcrelay compatible.
+	* Change configuration file format: add sections (ala .ini).
+	* Add a plugin architecture.
+	* Make log as a plugin. Improve it a lot.
+
+2009-01-13:
+	2.3 version
+	* Set MAC address in reply packets to MAC address of client.
+	  Exotic clients don't get packets with a broadcast MAC.
+
+2009-01-12:
+	2.2 version
+	* Minor bugfix: buffer size for sendto was a little more.
+
+2008-12-15:
+	2.1 version released
+	* Close standard descriptors when daemonize.
+	* Fix an error in calculation of servers index
+	  (when server >2).
+
+2008-09-19:
+	2.0 version released
+	* It's possible to put your configureation into a config file.
+	  The old syntax still can be used for compatibility.
+
+2008-05-26:
+	1.3 version released
+	* When an interface disabled/removed dhcprelya looped and eated CPU time
+
+2008-04-30:
+	1.2 version released
+	* Do not turn on promisc mode for interfaces.
+	* Do not create PID file when run with -d.
+	* A little code clean up.
+
+2008-02-01:
+	1.1 version released
+	* Optimized. Less system CPU time used.
+
+2007-12-17:
+	1.0 version released

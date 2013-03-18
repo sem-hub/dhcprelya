@@ -1,0 +1,59 @@
+[servers]
+# If this section is a first one, [servers] keyword is optional.
+#
+# You can include an external file here (only in this section)
+#file=/path/to/file
+# Specify DHCP servers for requests from the interfaces.
+dhcpserver1 vlan1 vlan2 vlan3
+# Use non-standard port for this server. DHCP requests from vlan1 interface 
+# will copy on both dhcpserver1 and dhcpserver2 (a fault tolerance scheme).
+dhcpserver2:1067 vlan1 vlan5
+
+[options]
+# These are defaults values
+# A maximum packet size 300<=max_packet_size<=1500
+#max_packet_size=1400
+# A maximum hop counts after a packet will discarded
+# 1<=max_hops<16
+#max_hops=4
+# Request rate limit (packets in second). 0 - off.
+#rps_limit=0
+# Look for plugins in this directory
+#plugin_path=/usr/local/lib/
+
+#[radius-plugin]
+# Servers list
+#servers=server1 server2
+# Server secret. May be one for all servers otherwise must be specified
+# for each server. Error will be rised if secret number is not the same as
+# servers number.
+#secret=Secret_password ...
+# Bind requests to this interface or IP.
+#bind_to=if|ip
+# Timeout for requests (here and bellow in seconds)
+#timeout=5
+# Tries bofore a server will marked as dead
+#tries=3
+# Don't ask dead servers for this period
+#dead_time=60
+# Send Account-Start to radius (using radius-client library)
+#only_for=vlan1 vlan5
+
+#[log-plugin]
+#detailed=yes
+#print_only_incoming=yes
+
+#[option82-plugin]
+#drop_untrusted=yes
+# List of Remote IDs of trusted circuits
+# may be strings or hexadecimal (spaces separated)
+# e.g. "host1" "host2" or 0x123123 0x67832673
+#trusted_circuits=""
+# Could be a string (quoted) or a hexadecimal (0xNNNNNNN)
+# default is a hostname of this host. An empty string
+# means don't add Remote ID at all.
+#remote_id=""
+# By default option82 will stripped from server answers
+# exclude trusted_circuits
+#never_strip_answer=no
+#always_strip_anwer=no
