@@ -1,3 +1,6 @@
+2013-04-15:
+	4.6 version
+	* fix rps_limit converting it to per-interface basis (and removing mutex)
 2012-12-03:
 	4.5 version
 	* destroy() in plugins for smooth shutdown.

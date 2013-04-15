@@ -16,7 +16,7 @@ dhcpserver2:1067 vlan1 vlan5
 # A maximum hop counts after a packet will discarded
 # 1<=max_hops<16
 #max_hops=4
-# Request rate limit (packets in second). 0 - off.
+# Per-interface request rate limit (packets in second). 0 - off.
 #rps_limit=0
 # Look for plugins in this directory
 #plugin_path=/usr/local/lib/
