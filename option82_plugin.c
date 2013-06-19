@@ -92,12 +92,13 @@ option82_plugin_init(plugin_options_head_t *options_head)
 			/* is a string */
 			if (*p == '"') {
 				p++;
-				for (i = 0; *p != '"' && *p != '\0'; p++, i++)
-					rid[i] = *p;
+				for(rid_len=0; *p != '"' && *p != '\0' && rid_len<sizeof(rid); p++,rid_len++)
+					rid[rid_len] = *p;
 				if (*p != '"') {
 					logd(LOG_ERR, "option82_plugin: Syntex error in option value at line: %s", opts->option_line);
 					return 0;
 				}
+				rid[rid_len] = '\0';
 			} else if (strcasecmp(p, "0x") == 0) {
 				p += 2;
 				logd(LOG_ERR, "option82_plugin: hexadecimal is not supported yet at line: %s", opts->option_line);
