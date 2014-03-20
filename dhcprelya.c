@@ -50,7 +50,7 @@
 
 #include "dhcprelya.h"
 
-#define VERSION "4.7"
+#define VERSION "4.8"
 
 /* options */
 /* globals (can check in modules) */
@@ -530,7 +530,7 @@ process_queue()
 	dhcp = (struct dhcp_packet *)q->packet;
 
 	/* Check the packet pass too many hops */
-	if (dhcp->hops > max_hops) {
+	if (dhcp->hops >= max_hops) {
 		free(q->packet);
 		free(q);
 		return;

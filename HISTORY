@@ -1,3 +1,7 @@
+2014-03-20:
+	4.8 version
+	* fix max_hops condition
+
 2013-06-19:
 	4.7 version
 	* fix remote_id parsing in option82_plugin (contributed by svv@sgaice.ru)
