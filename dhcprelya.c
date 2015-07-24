@@ -851,7 +851,7 @@ main(int argc, char *argv[])
 				ifs[j]->srv_num++;
 				ifs[j]->srvrs = realloc(ifs[j]->srvrs, ifs[j]->srv_num * sizeof(int));
 			}
-			ifs[j]->srvrs[ifs[i]->srv_num - 1] = i;
+			ifs[j]->srvrs[ifs[j]->srv_num - 1] = i;
 		}
 	}
 
