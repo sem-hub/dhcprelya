@@ -1,3 +1,7 @@
+2015-07-24:
+	4.9 version
+	* Fix segfault by using the proper syntax (bapt@)
+
 2014-03-20:
 	4.8 version
 	* fix max_hops condition
