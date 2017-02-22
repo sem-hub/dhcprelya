@@ -303,7 +303,7 @@ listener(void *param)
 			if (rps_limit && packet_count++ > rps_limit) {
 				clock_gettime(CLOCK_MONOTONIC_FAST, &tv);
 				if (DeltaUSec(tv, last_count_reset_tv) < 1000000) {
-					logd(LOG_WARNING, "The packet droped due to RPS limit");
+					logd(LOG_WARNING, "The packet on interface %s droped due to RPS limit", intf->name);
 					continue;
 				} else {
 					memcpy(&last_count_reset_tv, &tv, sizeof(struct timeval));
