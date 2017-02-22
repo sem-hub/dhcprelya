@@ -1,0 +1,161 @@
+Changes:
+
+* Don't get own traffic via bpf. (JohnHay at GitHub)
+* Rename HISTORY to ChangeLog and convert it to more common format.
+
+dhcprelya v4.9 (Release date: 2015-07-24)
+==============
+
+Changes:
+
+* Fix segfault by using the proper syntax. (bapt@)
+
+dhcprelya v4.8 (Release date: 2014-03-20)
+==============
+
+Changes:
+
+* Fix max_hops condition.
+
+dhcprelya v4.7 (Release date: 2013-06-19)
+==============
+
+Changes:
+
+* Fix remote_id parsing in option82_plugin. (svv@sgaice.ru)
+
+dhcprelya v4.6 (Release date: 2013-04-15)
+==============
+
+Changes:
+
+* Fix rps_limit converting it to per-interface basis (and remove a mutex).
+
+dhcprelya v4.5 (Release date: 2012-12-03)
+==============
+
+Changes:
+
+* destroy() in plugins for smooth shutdown.
+* Change plugin functions declaration. Use more appropriate types.
+* radius_plugin: get rid of freeradius-client library. Use a system libradius.
+* radius_plugin: rename bind_interface option to bind_to and allow to specify
+  an IP address there.
+
+dhcprelya v4.4 (Release date: 2012-11-01)
+==============
+
+Changes:
+
+* radius_plugin: send accounting only for DHCPACK packet.
+
+dhcprelya v4.3 (Release date: 2012-09-02)
+==============
+
+Changes:
+
+* Fix options string parsing.
+* Minor fix in radius_plugin.
+* Fix byte order for eh->ether_type.
+
+dhcprelya v4.3 (Release date: 2012-03-07)
+==============
+
+Changes:
+
+* If there is no interface to listen, dhcprelya took 100% CPU.
+* Fix memory leaks.
+* Implement rps_limit opetion to protect a server from a packet storm.
+* Fix checksum calculation in option82_plugin. (Thanks to Manuel Kasper)
+* Allow specify a DHCP server port. Useful for testing. (Manuel Kasper)
+
+dhcprelya v4.1 (Release date: 2009-07-16)
+==============
+
+Changes:
+
+* In radius plugin: build NAS port as client IP, not random.
+
+dhcprelya v4.0 (Release date: 2009-06-16)
+==============
+
+Changes:
+
+* Be more RFC compliant:
+  + Don't change GIADDR if it's not 0.
+  + Don't save incoming interface for a client. Detect it by GIADDR address.
+    It's simplified code a lot.
+  + Don't use INADDR_BROADCAST for answers, but YIADDR instead (excluding
+    bellow).
+  + Take into account a BROADCAST flag. If it's on, send an answer as 
+    a broadcast (both L2 & L3).
+* Added option82 plugin. RFC 3046 implementation.
+* Add a bind_interface option for radius plugin.
+
+dhcprelya v3.0 (Release date: 2009-02-13)
+==============
+
+Changes:
+
+* Add -A and -c options. They are ISC dhcrelay compatible.
+* Change configuration file format: add sections (ala .ini).
+* Add a plugin architecture.
+* Make log as a plugin. Improve it a lot.
+
+dhcprelya v2.3 (Release date: 2009-01-13)
+==============
+
+Changes:
+
+* Set MAC address in reply packets to MAC address of client. Exotic clients
+  don't get packets with a broadcast MAC.
+
+dhcprelya v2.2 (Release date: 2009-01-12)
+==============
+
+Changes:
+
+* Minor bugfix: buffer size for sendto was a little more.
+
+dhcprelya v2.1 (Release date: 2008-12-15)
+==============
+
+Changes:
+
+* Close standard descriptors when daemonize.
+* Fix an error in calculation of servers index (when server >2).
+
+dhcprelya v2.0 (Release date: 2008-09-19)
+==============
+
+Changes:
+
+* It's possible to put your configureation into a config file.  The old syntax
+  still can be used for compatibility.
+
+dhcprelya v1.3 (Release date: 2008-05-26)
+==============
+
+Changes:
+
+* When an interface disabled/removed dhcprelya looped and eated CPU time.
+
+dhcprelya v1.2 (Release date: 2008-04-30)
+==============
+
+Changes:
+
+* Do not turn on promisc mode for interfaces.
+* Do not create PID file when run with -d.
+* A little code clean up.
+
+dhcprelya v1.1 (Release date: 2008-02-01)
+==============
+
+Changes:
+
+* Optimized. Less system CPU time used.
+
+dhcprelya v1.0 (Release date: 2007-12-17)
+==============
+
