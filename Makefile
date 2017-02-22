@@ -3,7 +3,7 @@ OBJS=		dhcprelya.o utils.o net_utils.o ip_checksum.o log_plugin.o \
 		option82_plugin.o
 HEADER=		dhcprelya.h
 LIBS=		-L/usr/local/lib -lpcap -lutil -lthr
-CFLAGS+=	-Wall -fPIC
+CFLAGS+=	-Wall -fPIC -Wno-format-security
 
 LOG_PLUGIN_OBJS=	utils.o log_plugin.o
 OPTION82_PLUGIN_OBJS=	utils.o option82_plugin.o ip_checksum.o
