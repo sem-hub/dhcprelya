@@ -4,6 +4,7 @@ OBJS=		dhcprelya.o utils.o net_utils.o ip_checksum.o log_plugin.o \
 HEADER=		dhcprelya.h
 LIBS=		-L/usr/local/lib -lpcap -lutil -lthr
 CFLAGS+=	-Wall -fPIC
+LDFLAGS+=	-Wl,-export-dynamic
 PREFIX?=	/usr/local
 
 LOG_PLUGIN_OBJS=	utils.o log_plugin.o
@@ -31,7 +32,7 @@ all:	${PROGNAME} ${PROGNAME}_${LOG_PLUGIN}.so ${PROGNAME}_${OPTION82_PLUGIN}.so
 .endif
 
 ${PROGNAME}: ${OBJS}
-	${CC} ${DEBUG_FLAGS} ${CFLAGS} ${OBJS} ${LIBS} -o ${.TARGET}
+	${CC} ${DEBUG_FLAGS} ${CFLAGS} ${LDFLAGS} ${OBJS} ${LIBS} -o ${.TARGET}
 
 ${PROGNAME}_${RADIUS_PLUGIN}.so: ${OBJS}
 	${CC} ${DEBUG_FLAGS} -shared ${RADIUS_PLUGIN_OBJS} -o ${.TARGET}
