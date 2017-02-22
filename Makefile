@@ -4,6 +4,7 @@ OBJS=		dhcprelya.o utils.o net_utils.o ip_checksum.o log_plugin.o \
 HEADER=		dhcprelya.h
 LIBS=		-L/usr/local/lib -lpcap -lutil -lthr
 CFLAGS+=	-Wall -fPIC -Wno-format-security
+PREFIX?=	/usr/local
 
 LOG_PLUGIN_OBJS=	utils.o log_plugin.o
 OPTION82_PLUGIN_OBJS=	utils.o option82_plugin.o ip_checksum.o
@@ -48,15 +49,15 @@ clean:
 	rm -f ${PROGNAME} *.so *.o *.core
 
 install: ${PROGNAME}
-	install ${STRIP_FLAG} -m 555 ${PROGNAME} /usr/local/sbin/
-	install ${STRIP_FLAG} -m 555 ${PROGNAME}_${LOG_PLUGIN}.so /usr/local/lib/
-	install ${STRIP_FLAG} -m 555 ${PROGNAME}_${OPTION82_PLUGIN}.so /usr/local/lib/
+	install ${STRIP_FLAG} -m 555 ${PROGNAME} ${PREFIX}/sbin/
+	install ${STRIP_FLAG} -m 555 ${PROGNAME}_${LOG_PLUGIN}.so ${PREFIX}/lib/
+	install ${STRIP_FLAG} -m 555 ${PROGNAME}_${OPTION82_PLUGIN}.so ${PREFIX}/lib/
 .if defined(WITH_RADIUS_PLUGIN)
-	install ${STRIP_FLAG} -m 555 ${PROGNAME}_${RADIUS_PLUGIN}.so /usr/local/lib/
+	install ${STRIP_FLAG} -m 555 ${PROGNAME}_${RADIUS_PLUGIN}.so ${PREFIX}/lib/
 .endif
 
 install-rc:
-	install -m 555 ${PROGNAME}.sh /usr/local/etc/rc.d/${PROGNAME}
+	install -m 555 ${PROGNAME}.sh ${PREFIX}/etc/rc.d/${PROGNAME}
 
 deinstall:
-	rm -f /usr/local/sbin/${PROGNAME} /usr/local/lib/${PROGNAME}_* /usr/local/etc/rc.d/${PROGNAME}
+	rm -f ${PREFIX}/sbin/${PROGNAME} ${PREFIX}/lib/${PROGNAME}_* ${PREFIX}/etc/rc.d/${PROGNAME}
