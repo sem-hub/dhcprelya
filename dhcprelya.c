@@ -50,7 +50,7 @@
 
 #include "dhcprelya.h"
 
-#define VERSION "4.9"
+#define VERSION "4.10"
 
 /* options */
 /* globals (can check in modules) */
