@@ -509,7 +509,8 @@ process_server_answer()
 	}
 
 	if (!ignore)
-		write(ifs[if_idx]->bpf, packet, len);
+		if ((i = write(ifs[if_idx]->bpf, packet, len)) != len)
+			logd(LOG_ERR, "bpf write failed for %s while trying to write %d bytes (%d bytes wrote): %s", ifs[if_idx]->name, len, i, strerror(errno));
 
 	free(packet);
 	free(buf);
