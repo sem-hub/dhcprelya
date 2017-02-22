@@ -65,6 +65,10 @@ send_acct(void *packet)
 		logd(LOG_ERR, "radius_plugin: rad_put_string()");
 		goto end;
 	}
+	if (rad_put_string(rh, RAD_CALLING_STATION_ID, print_mac(dhcp->chaddr, buf)) == -1) {
+		logd(LOG_ERR, "radius_plugin: rad_put_string()");
+		goto end;
+	}
 	if (rad_put_addr(rh, RAD_FRAMED_IP_ADDRESS, dhcp->yiaddr) == -1) {
 		logd(LOG_ERR, "radius_plugin: rad_put_addr()");
 		goto end;
