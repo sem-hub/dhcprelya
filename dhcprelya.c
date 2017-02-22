@@ -124,7 +124,7 @@ open_interface(char *iname)
 	struct ifreq ifr;
 	struct bpf_program fp;
 	struct sockaddr_in baddr;
-	char errbuf[PCAP_ERRBUF_SIZE], file[32], buf[256];
+	char errbuf[PCAP_ERRBUF_SIZE], file[32], buf[256], filtstr[256];
 
 	if (if_num >= IF_MAX - 1)
 		process_error(EX_RES, "too many interfaces");
@@ -178,7 +178,9 @@ open_interface(char *iname)
 
 	if ((ifs[if_num]->cap = pcap_open_live(iname, max_packet_size, 0, 100, errbuf)) == NULL)
 		process_error(EX_RES, "pcap_open_live(%s): %s", iname, errbuf);
-	if (pcap_compile(ifs[if_num]->cap, &fp, "udp and dst port bootps", 0, 0) < 0)
+	sprintf(filtstr, "udp and dst port bootps and not ether src %s",
+	    print_mac(ifs[if_num]->mac, buf));
+	if (pcap_compile(ifs[if_num]->cap, &fp, filtstr, 0, 0) < 0)
 		process_error(EX_RES, "pcap_compile");
 	if (pcap_setfilter(ifs[if_num]->cap, &fp) < 0)
 		process_error(EX_RES, "pcap_setfilter");
