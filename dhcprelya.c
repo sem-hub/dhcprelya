@@ -1,4 +1,4 @@
-/* Copyright (c) 2007-2012 Sergey Matveychuk Yandex, LLC.  All rights
+/* Copyright (c) 2007-2017 Sergey Matveychuk Yandex, LLC.  All rights
  * reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -78,7 +78,7 @@ plugin_options_head_t *options_heads[MAX_PLUGINS];
 void
 usage(char *prgname)
 {
-	fprintf(stderr, "DHCP relay. Yandex edition. 2007-2012.\n");
+	fprintf(stderr, "DHCP relay. Yandex edition. 2007-2017.\n");
 	fprintf(stderr, "Version %s.\n", VERSION);
 	fprintf(stderr, "Usage:\n%s [-d] [-p<pidfile>] -f <config_file>\n", prgname);
 	fprintf(stderr, "or ISC compatible mode:\n%s [-d] [-p<pidfile>] -A <packet_size> -c <max_hops> -i <ifname>... <dhcp_server>...\n", prgname);
