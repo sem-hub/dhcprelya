@@ -41,7 +41,7 @@
 #include <syslog.h>
 
 #define	IF_MAX		100	/* Max interfaces supported */
-#define	SERVERS_MAX	10	/* Max servers supported */
+#define	SERVERS_MAX	64	/* Max servers supported */
 
 /* Error codes */
 #define	EX_OK		0
