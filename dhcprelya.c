@@ -97,8 +97,8 @@ process_error(int ret_code, char *fmt,...)
 		pidfile_remove(pfh);
 
 	vsprintf(buf, fmt, ap);
-	logd(LOG_ERR, buf);
-	errx(ret_code, buf);
+	logd(LOG_ERR, "%s", buf);
+	errx(ret_code, "%s", buf);
 
 	/* does not reach */
 	va_end(ap);

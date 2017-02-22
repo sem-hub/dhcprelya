@@ -77,11 +77,10 @@ logd(int log_level, char *fmt,...)
 	va_start(ap, fmt);
 
 	vsprintf(buf, fmt, ap);
-	if (debug) {
-		printf(buf);
-		putchar('\n');
-	} else if (log_level != LOG_DEBUG)
-		syslog(LOG_ERR, buf);
+	if (debug)
+		printf("%s\n", buf);
+	else if (log_level != LOG_DEBUG)
+		syslog(LOG_ERR, "%s", buf);
 
 	va_end(ap);
 }
