@@ -57,5 +57,7 @@ one log record. Add line print_only_incoming=yes in [log-plugin] section
 to achive this.
 
 Any questions, bug reports and feature requests are welcome.
+Watch for the porject on GitHub: https://github.com/sem-hub/dhcprelya
+Report bugs and problems there.
 
 Sergey Matveychuk <sem@semmy.ru>
