@@ -1,14 +1,29 @@
+dhcprelya v5.0 (Release date: 2017-02-23)
+==============
+
 Changes:
 
 * Don't get own traffic via bpf. (JohnHay at GitHub)
-* Rename HISTORY to ChangeLog and convert it to more common format.
+* Rename HISTORY to ChangeLog and convert it to more fine format.
+* Add an interface name to RPS limit log warning. (lytboris@yandex-team.ru)
+* Bump copyright years.
+* Remake build system. Add PREFIX support. (butcher@yandex-team.ru)
+* radius_plugin: Put MAC address into RAD_CALLING_STATION_ID too, it should be
+  there, not in username. (lytboris@yandex-team.ru)
+* Log bpf writing failures. (lytboris@yandex-team.ru)
+* Increase SERVER_MAX value to 64. (lytboris@yandex-team.ru)
+* Fix CC warnings. (xornet@yandex-team.ru)
+* log_plugin: Strings lost an ending character after strlcpy(3) was used.
+* A new queue and server answers processing. No idle work anymore. 0% CPU
+  using when none traffic processed.
+* Enrich README file.
 
 dhcprelya v4.9 (Release date: 2015-07-24)
 ==============
 
 Changes:
 
-* Fix segfault by using the proper syntax. (bapt@)
+* Fix segfault by using the proper syntax. (bapt@FreeBSD.org)
 
 dhcprelya v4.8 (Release date: 2014-03-20)
 ==============
