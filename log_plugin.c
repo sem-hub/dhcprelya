@@ -265,7 +265,7 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 		case 86:	/* NDS Tree name */
 		case 87:	/* NDS context */
 		case 252:	/* MSFT - WinSock Proxy Auto Detect */
-			strlcpy(buf, (char *)&data[j + 2], data[j + 1]);
+			strlcpy(buf, (char *)&data[j + 2], data[j + 1]+1);
 			buf[data[j + 1]] = 0;
 			printf("%s", buf);
 			break;
@@ -422,7 +422,7 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 			printf("-");
 			printf("%d", data[j + 4]);
 			printf(" ");
-			strlcpy(buf, (char *)&data[j + 5], data[j + 1] - 3);
+			strlcpy(buf, (char *)&data[j + 5], data[j + 1] - 2);
 			buf[data[j + 1] - 3] = 0;
 			printf("%s", buf);
 			break;
