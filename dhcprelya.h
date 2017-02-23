@@ -54,7 +54,7 @@
 #define INTF_NAME_LEN	16
 #define ETH_ADDR_LEN	6
 
-#define DHCP_UDP_OVERHEAD	(20 + /* IP header */                   \
+#define DHCP_UDP_OVERHEAD	(20 +	/* IP header */	\
 				 8)	/* UDP header */
 #define DHCP_SNAME_LEN		64
 #define DHCP_FILE_LEN		128
@@ -116,7 +116,7 @@ struct queue {
 	int if_idx;
 	ip_addr_t ip_dst;
 
-	 STAILQ_ENTRY(queue) entries;
+	STAILQ_ENTRY(queue) entries;
 };
 
 /* Global options */
@@ -140,7 +140,7 @@ int get_ip(char *iname, ip_addr_t *ip, ip_addr_t *mask);
 
 struct plugin_options {
 	char *option_line;
-	 SLIST_ENTRY(plugin_options) next;
+	SLIST_ENTRY(plugin_options) next;
 };
 typedef
 SLIST_HEAD(opt_head, plugin_options)
@@ -149,7 +149,7 @@ plugin_options_head_t;
 /* Be aware:
  * 
  * client_request() gets a packet with link-level headers send_to_server() gets
- * a stripped packet server_answer()  gets a stripped packet send_to_client()
+ * a stripped packet server_answer() gets a stripped packet send_to_client()
  * gets a packet with link-level header */
 struct plugin_data {
 	char *name;
@@ -157,14 +157,14 @@ struct plugin_data {
 	void (*destroy) ();
 	/* packet buffer could be reallocated in functions bellow */
 	int (*client_request) (const struct interface *intf,
-			        uint8_t **packet, size_t *psize);
+				uint8_t **packet, size_t *psize);
 	int (*send_to_server) (const struct sockaddr_in *server,
-			        uint8_t **packet, size_t *psize);
+				uint8_t **packet, size_t *psize);
 	int (*server_answer) (const struct sockaddr_in *server,
-			       uint8_t **packet, size_t *psize);
+				uint8_t **packet, size_t *psize);
 	int (*send_to_client) (const struct sockaddr_in *server,
-			     const struct interface *intf, uint8_t **packet,
-			        size_t *psize);
+				const struct interface *intf, uint8_t **packet,
+				size_t *psize);
 };
 
 #endif

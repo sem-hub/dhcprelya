@@ -154,7 +154,7 @@ open_interface(char *iname)
 	strlcpy(ifs[if_num]->name, iname, INTF_NAME_LEN);
 
 	if (!get_mac(iname, (char *)ifs[if_num]->mac) ||
-	    !get_ip(iname, &ifs[if_num]->ip, &ifs[if_num]->mask)) {
+		!get_ip(iname, &ifs[if_num]->ip, &ifs[if_num]->mask)) {
 		free(ifs[if_num]);
 		return 0;
 	}
@@ -180,7 +180,7 @@ open_interface(char *iname)
 	if ((ifs[if_num]->cap = pcap_open_live(iname, max_packet_size, 0, 100, errbuf)) == NULL)
 		process_error(EX_RES, "pcap_open_live(%s): %s", iname, errbuf);
 	sprintf(filtstr, "udp and dst port bootps and not ether src %s",
-	    print_mac(ifs[if_num]->mac, buf));
+		print_mac(ifs[if_num]->mac, buf));
 	if (pcap_compile(ifs[if_num]->cap, &fp, filtstr, 0, 0) < 0)
 		process_error(EX_RES, "pcap_compile");
 	if (pcap_setfilter(ifs[if_num]->cap, &fp) < 0)
@@ -202,7 +202,7 @@ open_interface(char *iname)
 		process_error(EX_RES, "bind: %s", strerror(errno));
 
 	logd(LOG_WARNING, "Listen at %s: %s/%s, %s", iname, print_ip(ifs[if_num]->ip, buf),
-	     print_ip(ifs[if_num]->mask, buf + 16), print_mac(ifs[if_num]->mac, buf + 32));
+		print_ip(ifs[if_num]->mask, buf + 16), print_mac(ifs[if_num]->mac, buf + 32));
 
 	if_num++;
 	return 1;
@@ -251,7 +251,7 @@ open_server(char *server_spec)
 	srv_num++;
 
 	logd(LOG_WARNING, "DHCP server #%d: %s (%s)", srv_num, name,
-	     print_ip(servers[srv_num - 1]->sockaddr.sin_addr.s_addr, buf));
+		print_ip(servers[srv_num - 1]->sockaddr.sin_addr.s_addr, buf));
 
 	free(name);
 	return 1;
@@ -546,7 +546,7 @@ process_queue(struct queue *q)
 				if (plugins[j]->send_to_server(&(servers[ifs[q->if_idx]->srvrs[i]]->sockaddr),
 						&q->packet, &q->len) == 0) {
 					logd(LOG_WARNING, "The packet rejected by %s plugin",
-					     plugins[j]->name);
+						plugins[j]->name);
 					ignore = 1;
 					break;
 				}
@@ -554,9 +554,9 @@ process_queue(struct queue *q)
 
 		if (!ignore) {
 			sendto(ifs[q->if_idx]->fd, q->packet,
-			       q->len, 0,
-			       (struct sockaddr *)&servers[ifs[q->if_idx]->srvrs[i]]->sockaddr,
-			       sizeof(struct sockaddr_in));
+				q->len, 0,
+				(struct sockaddr *)&servers[ifs[q->if_idx]->srvrs[i]]->sockaddr,
+				sizeof(struct sockaddr_in));
 			sent++;
 		}
 	}
@@ -712,7 +712,7 @@ read_config(const char *filename)
 
 			if (strcasecmp(buf, "max_packet_size") == 0) {
 				max_packet_size = strtol(p, NULL, 10);
-				if (max_packet_size < 300 || max_packet_size > DHCP_MTU_MAX)
+				if (max_packet_size < DHCP_MIN_SIZE || max_packet_size > DHCP_MTU_MAX)
 					errx(1, "Wrong packet size. Line: %d", line);
 				logd(LOG_DEBUG, "Option max_packet_size set to: %d", max_packet_size);
 				continue;
