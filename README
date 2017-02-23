@@ -1,4 +1,4 @@
-dhcprelya is a lightweight DHCP relay agent written for Yandex company for
+dhcprelya is a lightweight DHCP relay agent written for Yandex company with
 high loaded routers with tens interfaces and thousands hosts behind them.
 
 It's fast, independed from any side libraries, and it does not turn on
@@ -12,7 +12,9 @@ which unfortunately has some shortages) and dhcpdump (net/dhcpdump).
 It's distributed under BSD license.
 
 HOW TO RUN
-There are two syntax. The first one is a ISC dhcrelay compatible:
+==========
+There are two syntaxes. The first one is a ISC dhcrelay compatible but you
+can't use plugins and many options this way:
 
 dhcprelya [-d] [-p<pidfile>] -A <packet_size> -c <hops_count>
 	-i<if1>... -i<ifN> <server1>... <serverN>
@@ -36,6 +38,23 @@ See dhcprelya.conf-example for format.
 
 If an interface does not exist on this host, it'll be ignored. It's useful
 for only one config file for all routers with logical interfaces (vlanNN etc.).
+
+HOW TO MONITOR PROBLEMS
+=======================
+Add lines bellow in your dhcprelya.conf file if you have. Or create a simplest
+one with a [servers] section.
+
+[log-plugin]
+detailed=yes
+
+Run dhcprelya with -d and -f options:
+# dhcprelya -d -f dhcprelya.conf
+
+You will see all decoded incoming and outgoing packages. It means you will see
+duplicates - read request from a client (a first log record) and send it
+to server (second log record with the same data). Often you want to see only
+one log record. Add line print_only_incoming=yes in [log-plugin] section
+to achive this.
 
 Any questions, bug reports and feature requests are welcome.
 
