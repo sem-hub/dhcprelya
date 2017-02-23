@@ -50,7 +50,7 @@
 
 #include "dhcprelya.h"
 
-#define VERSION "4.10"
+#define VERSION "5.0"
 
 /* options */
 /* globals (can check in modules) */
@@ -70,6 +70,7 @@ int if_num = 0;			/* interfaces number */
 int srv_num = 0;		/* servers number */
 unsigned int queue_size = 0, rps_limit = 0;
 pthread_mutex_t queue_lock;
+pthread_cond_t queue_cond;
 plugin_options_head_t *options_heads[MAX_PLUGINS];
 
 #define DeltaUSec(finish,start) \
@@ -367,6 +368,7 @@ listener(void *param)
 			pthread_mutex_lock(&queue_lock);
 			STAILQ_INSERT_TAIL(&q_head, q, entries);
 			queue_size++;
+			pthread_cond_signal(&queue_cond);
 			pthread_mutex_unlock(&queue_lock);
 		} else {
 			/* Sleep if an error. It prevent us from 100% CPU
@@ -379,15 +381,14 @@ listener(void *param)
 /* Only one packet from server is processed at once
  * 
  */
-void
-process_server_answer()
+void *
+process_server_answer(void *param)
 {
 	struct sockaddr_in from_addr;
 	struct dhcp_packet *dhcp = NULL;
 	struct ether_header *eh;
 	struct ip *ip;
 	struct udphdr *udp;
-	struct timeval timeout;
 	uint8_t *buf = NULL, *packet = NULL;
 	char pbuf[11 + 16 + 19];
 	socklen_t from_len = sizeof(from_addr);
@@ -395,140 +396,137 @@ process_server_answer()
 	size_t len, psize = 0;
 	fd_set fds;
 
-	FD_ZERO(&fds);
-	for (i = 0; i < if_num; i++) {
-		FD_SET(ifs[i]->fd, &fds);
-		if (fdmax < ifs[i]->fd)
-			fdmax = ifs[i]->fd;
-	}
+	while (1) {
+		FD_ZERO(&fds);
+		for (i = 0; i < if_num; i++) {
+			FD_SET(ifs[i]->fd, &fds);
+			if (fdmax < ifs[i]->fd)
+				fdmax = ifs[i]->fd;
+		}
 
-	timeout.tv_sec = 0;
-	timeout.tv_usec = 10;
-	if (select(fdmax + 1, &fds, NULL, NULL, &timeout)) {
-		for (i = 0; i < if_num; i++)
-			if (FD_ISSET(ifs[i]->fd, &fds)) {
-				bzero(&from_addr, sizeof(from_addr));
-				/* from_addr.sin_family=AF_INET;
-				 * from_addr.sin_port = bootps_port; */
-				from_len = sizeof(from_addr);
+		if (select(fdmax + 1, &fds, NULL, NULL, NULL)) {
+			for (i = 0; i < if_num; i++)
+				if (FD_ISSET(ifs[i]->fd, &fds)) {
+					bzero(&from_addr, sizeof(from_addr));
+					/* from_addr.sin_family=AF_INET;
+					 * from_addr.sin_port = bootps_port; */
+					from_len = sizeof(from_addr);
 
-				buf = malloc(max_packet_size);
-				if (buf == NULL) {
-					logd(LOG_ERR, "malloc error");
-					return;
+					buf = malloc(max_packet_size);
+					if (buf == NULL) {
+						logd(LOG_ERR, "malloc error");
+						continue;
+					}
+					psize = recvfrom(ifs[i]->fd, buf, max_packet_size, 0,
+						(struct sockaddr *)&from_addr, &from_len);
+					if (psize < DHCP_MIN_SIZE) {
+						logd(LOG_WARNING, "A little data from server: %zu < %d", psize, DHCP_MIN_SIZE);
+						free(buf);
+						continue;
+					}
+					/* If a plugin returns 0, stop processing and
+					 * do not send the packet */
+					ignore = 0;
+					for (j = 0; j < plugins_number; j++) {
+						if (plugins[j]->server_answer)
+							if (plugins[j]->server_answer(&from_addr, &buf, &psize) == 0) {
+								logd(LOG_WARNING, "The packet rejected by %s plugin",
+									plugins[j]->name);
+								ignore = 1;
+								break;
+							}
+					}
+
+					if (ignore) {
+						free(buf);
+						continue;
+					}
+					/* Only one packet! */
+					break;
 				}
-				psize = recvfrom(ifs[i]->fd, buf, max_packet_size, 0,
-				  (struct sockaddr *)&from_addr, &from_len);
-				/* XXX a sanity check? */
-				/* If a plugin returns 0, stop processing and
-				 * do not send the packet */
-				ignore = 0;
-				for (j = 0; j < plugins_number; j++) {
-					if (plugins[j]->server_answer)
-						if (plugins[j]->server_answer(&from_addr, &buf, &psize) == 0) {
-							logd(LOG_WARNING, "The packet rejected by %s plugin",
-							  plugins[j]->name);
-							ignore = 1;
-							break;
-						}
-				}
+		} else {
+			/* No packets from servers */
+			continue;
+		}
 
-				if (ignore) {
-					free(buf);
-					return;
-				}
-				/* Only one packet! */
-				break;
-			}
-	} else {
-		/* No packets from servers */
-		return;
-	}
+		dhcp = (struct dhcp_packet *)buf;
+		/* Generate a new packet to send to a client */
+		packet = malloc(ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize);
+		if (packet == NULL) {
+			logd(LOG_ERR, "malloc error");
+			free(buf);
+			continue;
+		}
+		bzero(packet, ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize);
+		eh = (struct ether_header *)packet;
+		ip = (struct ip *)(packet + ETHER_HDR_LEN);
+		udp = (struct udphdr *)(packet + ETHER_HDR_LEN + sizeof(struct ip));
 
-	dhcp = (struct dhcp_packet *)buf;
-	/* Generate a new packet to send to a client */
-	packet = malloc(ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize);
-	if (packet == NULL) {
-		logd(LOG_ERR, "malloc error");
+		if_idx = find_interface(*((ip_addr_t *)&dhcp->giaddr));
+		if (if_idx == if_num) {
+			logd(LOG_ERR, "Destination interface not found for: %s",
+				print_ip(*((ip_addr_t *)&dhcp->giaddr), pbuf));
+			free(buf);
+			continue;
+		}
+		memcpy(eh->ether_shost, ifs[if_idx]->mac, ETHER_ADDR_LEN);
+		eh->ether_type = htons(ETHERTYPE_IP);
+
+		ip->ip_v = IPVERSION;
+		ip->ip_hl = 5;		/* IP header length is 5 word (no options) */
+		ip->ip_tos = IPTOS_LOWDELAY;
+		ip->ip_len = htons(sizeof(struct ip) + sizeof(struct udphdr) + psize);
+		ip->ip_id = 0;
+		ip->ip_off = 0;
+		ip->ip_ttl = 16;
+		ip->ip_p = IPPROTO_UDP;
+		ip->ip_sum = 0;
+		memcpy(&ip->ip_src, &ifs[if_idx]->ip, sizeof(ip_addr_t));
+		/* Broadcast flag */
+		if (dhcp->op == BOOTREPLY && dhcp->flags & 0x80) {
+			ip->ip_dst.s_addr = INADDR_BROADCAST;
+			memset(eh->ether_dhost, 0xff, ETHER_ADDR_LEN);
+		} else {
+			memcpy(&ip->ip_dst, &dhcp->yiaddr, sizeof(ip_addr_t));
+			memcpy(eh->ether_dhost, dhcp->chaddr, ETHER_ADDR_LEN);
+		}
+
+		udp->uh_sport = bootps_port;
+		udp->uh_dport = bootpc_port;
+		udp->uh_ulen = htons(sizeof(struct udphdr) + psize);
+		udp->uh_sum = 0;	/* UDP checksum is optional. we don't care
+					 * it. */
+
+		memcpy(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, buf, psize);
+		ip->ip_sum = htons(ip_checksum((const char *)ip, sizeof(struct ip)));
+
+		len = ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize;
+		ignore = 0;
+		for (j = 0; j < plugins_number; j++) {
+			if (plugins[j]->send_to_client)
+				if (plugins[j]->send_to_client(&from_addr, ifs[if_idx],
+								&packet, &len) == 0) {
+					logd(LOG_WARNING, "The packet rejected by %s plugin", plugins[j]->name);
+					ignore = 1;
+					break;
+				}
+		}
+
+		if (!ignore)
+			if ((i = write(ifs[if_idx]->bpf, packet, len)) != len)
+				logd(LOG_ERR, "bpf write failed for %s while trying to write %d bytes (%d bytes wrote): %s", ifs[if_idx]->name, len, i, strerror(errno));
+
+		free(packet);
 		free(buf);
-		return;
 	}
-	bzero(packet, ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize);
-	eh = (struct ether_header *)packet;
-	ip = (struct ip *)(packet + ETHER_HDR_LEN);
-	udp = (struct udphdr *)(packet + ETHER_HDR_LEN + sizeof(struct ip));
-
-	if_idx = find_interface(*((ip_addr_t *)&dhcp->giaddr));
-	if (if_idx == if_num) {
-		logd(LOG_ERR, "Destination interface not found for: %s",
-		     print_ip(*((ip_addr_t *)&dhcp->giaddr), pbuf));
-		free(buf);
-		return;
-	}
-	memcpy(eh->ether_shost, ifs[if_idx]->mac, ETHER_ADDR_LEN);
-	eh->ether_type = htons(ETHERTYPE_IP);
-
-	ip->ip_v = IPVERSION;
-	ip->ip_hl = 5;		/* IP header length is 5 word (no options) */
-	ip->ip_tos = IPTOS_LOWDELAY;
-	ip->ip_len = htons(sizeof(struct ip) + sizeof(struct udphdr) + psize);
-	ip->ip_id = 0;
-	ip->ip_off = 0;
-	ip->ip_ttl = 16;
-	ip->ip_p = IPPROTO_UDP;
-	ip->ip_sum = 0;
-	memcpy(&ip->ip_src, &ifs[if_idx]->ip, sizeof(ip_addr_t));
-	/* Broadcast flag */
-	if (dhcp->op == BOOTREPLY && dhcp->flags & 0x80) {
-		ip->ip_dst.s_addr = INADDR_BROADCAST;
-		memset(eh->ether_dhost, 0xff, ETHER_ADDR_LEN);
-	} else {
-		memcpy(&ip->ip_dst, &dhcp->yiaddr, sizeof(ip_addr_t));
-		memcpy(eh->ether_dhost, dhcp->chaddr, ETHER_ADDR_LEN);
-	}
-
-	udp->uh_sport = bootps_port;
-	udp->uh_dport = bootpc_port;
-	udp->uh_ulen = htons(sizeof(struct udphdr) + psize);
-	udp->uh_sum = 0;	/* UDP checksum is optional. we don't care
-				 * it. */
-
-	memcpy(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, buf, psize);
-	ip->ip_sum = htons(ip_checksum((const char *)ip, sizeof(struct ip)));
-
-	len = ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize;
-	ignore = 0;
-	for (j = 0; j < plugins_number; j++) {
-		if (plugins[j]->send_to_client)
-			if (plugins[j]->send_to_client(&from_addr, ifs[if_idx],
-						       &packet, &len) == 0) {
-				logd(LOG_WARNING, "The packet rejected by %s plugin", plugins[j]->name);
-				ignore = 1;
-				break;
-			}
-	}
-
-	if (!ignore)
-		if ((i = write(ifs[if_idx]->bpf, packet, len)) != len)
-			logd(LOG_ERR, "bpf write failed for %s while trying to write %d bytes (%d bytes wrote): %s", ifs[if_idx]->name, len, i, strerror(errno));
-
-	free(packet);
-	free(buf);
 }
 
 /* Get one packet from queue and process it (send to server(s)) */
 void
-process_queue()
+process_queue(struct queue *q)
 {
 	int i, j, ignore, sent = 0;
-	struct queue *q;
 	struct dhcp_packet *dhcp;
-
-	pthread_mutex_lock(&queue_lock);
-	q = STAILQ_FIRST(&q_head);
-	STAILQ_REMOVE_HEAD(&q_head, entries);
-	queue_size--;
-	pthread_mutex_unlock(&queue_lock);
 
 	dhcp = (struct dhcp_packet *)q->packet;
 
@@ -772,6 +770,7 @@ main(int argc, char *argv[])
 	pid_t opid;
 	char prgname[80], filename[256], *p;
 	struct servent *servent;
+	struct queue *q;
 	pthread_t tid;
 
 	/* Default plugin_base */
@@ -794,7 +793,7 @@ main(int argc, char *argv[])
 			if (configured == 2)
 				errx(1, "Either config file or command line options allowed. Not both.");
 			max_packet_size = strtol(optarg, NULL, 10);
-			if (max_packet_size < 300 || max_packet_size > DHCP_MTU_MAX)
+			if (max_packet_size < DHCP_MIN_SIZE || max_packet_size > DHCP_MTU_MAX)
 				errx(1, "Wrong packet size");
 			break;
 		case 'c':
@@ -894,20 +893,30 @@ main(int argc, char *argv[])
 	STAILQ_INIT(&q_head);
 
 	pthread_mutex_init(&queue_lock, NULL);
+	pthread_cond_init(&queue_cond, NULL);
 
 	/* Create listeners for every interface */
 	for (i = 0; i < if_num; i++) {
 		pthread_create(&tid, NULL, listener, ifs[i]);
 		pthread_detach(tid);
 	}
+	/* A thread for servers answers processing */
+	pthread_create(&tid, NULL, process_server_answer, NULL);
+	pthread_detach(tid);
+
 
 	/* Main loop */
 	while (1) {
-		if (queue_size > 0)
-			process_queue();
+		pthread_mutex_lock(&queue_lock);
+		while (queue_size == 0)
+			pthread_cond_wait(&queue_cond, &queue_lock);
 
-		/* Process one packet from server(s) */
-		process_server_answer();
+		q = STAILQ_FIRST(&q_head);
+		STAILQ_REMOVE_HEAD(&q_head, entries);
+		queue_size--;
+
+		pthread_mutex_unlock(&queue_lock);
+		process_queue(q);
 	}
 
 	/* Destroy polugins */
@@ -915,5 +924,6 @@ main(int argc, char *argv[])
 		if (plugins[i]->destroy)
 			(plugins[i]->destroy) ();
 	}
+	pthread_cond_destroy(&queue_cond);
 	pthread_mutex_destroy(&queue_lock);
 }

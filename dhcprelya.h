@@ -62,6 +62,7 @@
 #define DHCP_FIXED_LEN		(DHCP_FIXED_NON_UDP + DHCP_UDP_OVERHEAD)
 /* Everything but options. */
 #define DHCP_MTU_MAX		1500
+#define DHCP_MIN_SIZE		300
 #define DHCP_OPTION_LEN		(DHCP_MTU_MAX - DHCP_FIXED_LEN)
 #define DHCP_COOKIE_LEN		4
 
