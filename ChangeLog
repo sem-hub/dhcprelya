@@ -1,5 +1,10 @@
 Changes:
 
+* Add IP binding for client interfaces. In case when there are many IP
+  addresses present on interface we can now specify an IP address on which
+  we want to listen. (xornet@yandex-team.ru)
+* Rework get_ip(). We never need net mask there. Specify prefered (bind) IP
+  instead.
 * Compute UDP checksum. iPXE rejects DHCP packets without it. (azryve@yandex-team.ru)
 * Add a struct of headers with #pragma pack for future use.
 * Rename a struct with confusing name 'header' to 'pcap_header'.

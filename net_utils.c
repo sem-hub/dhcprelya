@@ -37,8 +37,10 @@
 #include <ifaddrs.h>
 #include "dhcprelya.h"
 
+/* Get MAC address from if_name.
+ */
 int
-get_mac(char *if_name, char *if_mac)
+get_mac(const char *if_name, char *if_mac)
 {
 	struct ifaddrs *ifaphead, *ifap;
 	int found = 0;
@@ -62,32 +64,33 @@ get_mac(char *if_name, char *if_mac)
 	return 1;
 }
 
+/* Get an IP address from ifname. If bound_ip != NULL, it's a preferable.
+ */
 int
-get_ip(char *iname, ip_addr_t *ip, ip_addr_t *mask)
+get_ip(const char *iname, ip_addr_t *ip, const ip_addr_t *bound_ip)
 {
-	int s;
-	struct ifreq ifr;
-	struct sockaddr_in *saddr;
+	struct ifaddrs *ifaddr, *ifa;
+	int family;
+	struct sockaddr_in *saddr = NULL;
 
-	if ((s = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0)
-		errx(EX_RES, "get_ip: socket: %s", strerror(errno));
-
-	strlcpy(ifr.ifr_name, iname, sizeof(ifr.ifr_name));
-	if (ioctl(s, SIOCGIFADDR, &ifr) < 0) {
-		close(s);
-		logd(LOG_DEBUG, "Can't get IP for %s", iname);
-		return 0;
+	if (getifaddrs(&ifaddr) == -1)
+		errx(1, "getifaddrs: %s", strerror(errno));
+	for (ifa = ifaddr; ifa != NULL; ifa = ifa->ifa_next) {
+		if (ifa->ifa_addr == NULL)
+			continue;
+		family = ifa->ifa_addr->sa_family;
+		if (family != PF_INET && family != AF_INET)
+			continue;
+		if (strcmp(ifa->ifa_name, iname) != 0)
+			continue;
+		saddr = (struct sockaddr_in *)ifa->ifa_addr;
+		if (bound_ip && memcmp(&saddr->sin_addr, &bound_ip, sizeof(ip_addr_t)) != 0)
+			continue;
+		if (ip != NULL)
+			memcpy(ip, &saddr->sin_addr, sizeof(ip_addr_t));
+		freeifaddrs(ifaddr);
+		return 1;
 	}
-	saddr = (struct sockaddr_in *)&ifr.ifr_addr;
-	memcpy(ip, &saddr->sin_addr.s_addr, sizeof(ip_addr_t));
-
-	if (ioctl(s, SIOCGIFNETMASK, &ifr) < 0) {
-		close(s);
-		logd(LOG_DEBUG, "Can't get netmask for %s", iname);
-		return 0;
-	}
-	memcpy(mask, &saddr->sin_addr.s_addr, sizeof(ip_addr_t));
-
-	close(s);
-	return 1;
+	freeifaddrs(ifaddr);
+	return 0;
 }

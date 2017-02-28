@@ -36,6 +36,7 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/select.h>
+#include <arpa/inet.h>
 #include <net/if.h>
 #include <net/bpf.h>
 #include <sys/ioctl.h>
@@ -58,6 +59,9 @@ unsigned debug = 0, max_packet_size = 1400;;
 /* local */
 static unsigned max_hops = 4;
 static char plugin_base[80];
+
+STAILQ_HEAD(queue_head, queue) q_head;
+STAILQ_HEAD(bindmap, ip_binding_map) ip_binding_map_head;
 
 uint8_t plugins_number = 0;
 struct plugin_data *plugins[MAX_PLUGINS];
@@ -106,7 +110,7 @@ process_error(int ret_code, char *fmt,...)
 }
 
 int
-find_interface(ip_addr_t addr)
+find_interface(const ip_addr_t addr)
 {
 	int i;
 
@@ -118,8 +122,19 @@ find_interface(ip_addr_t addr)
 	return i;
 }
 
+ip_addr_t *
+get_bound_ip(const char *iname)
+{
+	struct ip_binding_map *ip_map_entry;
+	STAILQ_FOREACH(ip_map_entry, &ip_binding_map_head, next) {
+		if (strcmp(ip_map_entry->iname, iname) == 0)
+			return &ip_map_entry->ip;
+	}
+	return NULL;
+}
+
 int
-open_interface(char *iname)
+open_interface(const char *iname)
 {
 	int i, j, x = 1;
 	struct ifreq ifr;
@@ -153,8 +168,8 @@ open_interface(char *iname)
 	ifs[if_num]->idx = if_num;
 	strlcpy(ifs[if_num]->name, iname, INTF_NAME_LEN);
 
-	if (!get_mac(iname, (char *)ifs[if_num]->mac) ||
-		!get_ip(iname, &ifs[if_num]->ip, &ifs[if_num]->mask)) {
+	if (!get_mac(iname, (char *)ifs[if_num]->mac) || 
+		!get_ip(iname, &ifs[if_num]->ip, get_bound_ip(iname))) {
 		free(ifs[if_num]);
 		return 0;
 	}
@@ -201,15 +216,15 @@ open_interface(char *iname)
 	if (bind(ifs[if_num]->fd, (struct sockaddr *)&baddr, sizeof(baddr)) < 0)
 		process_error(EX_RES, "bind: %s", strerror(errno));
 
-	logd(LOG_WARNING, "Listen at %s: %s/%s, %s", iname, print_ip(ifs[if_num]->ip, buf),
-		print_ip(ifs[if_num]->mask, buf + 16), print_mac(ifs[if_num]->mac, buf + 32));
+	logd(LOG_WARNING, "Listen at %s: %s, %s", iname, print_ip(ifs[if_num]->ip, buf),
+		print_mac(ifs[if_num]->mac, buf + 32));
 
 	if_num++;
 	return 1;
 }
 
 int
-open_server(char *server_spec)
+open_server(const char *server_spec)
 {
 	struct hostent *hostent;
 	char buf[16], *p;
@@ -258,7 +273,7 @@ open_server(char *server_spec)
 }
 
 int
-sanity_check(const char *packet, unsigned len)
+sanity_check(const char *packet, const unsigned len)
 {
 	struct ether_header *eh;
 	struct ip *ip;
@@ -602,14 +617,18 @@ read_config(const char *filename)
 	char buf[5000], plugin_name[50], plugin_path[100];
 	char plugin_data_name[100];
 	FILE *f, *fs;
-	char *p;
+	char *p, *p1;
 	int line = 0;
+	int str_len;
 	void *handle;
+
 	enum sections {
 		Servers, Options, Plugin
 	} section = Servers;
+
 	struct plugins_data *plugins_data;
 	struct plugin_options *popt, *last_popt = NULL;
+	struct ip_binding_map *bind_map_entry = NULL;
 
 	if ((f = fopen(filename, "r")) == NULL)
 		errx(1, "Can't open: %s", filename);
@@ -685,8 +704,35 @@ read_config(const char *filename)
 			else {
 				*p = '\0';
 				p++;
+				if (strcasecmp(buf, "bind_ip") == 0) {
+					if ((p1 = strsep(&p, " ")) == NULL)
+						errx(1, "bind_ip syntax error at line %d", line);
+					bind_map_entry = malloc(sizeof(struct ip_binding_map));
+					if (bind_map_entry == NULL)
+						process_error(EX_MEM, "malloc");
+					str_len = strlen(p1) + 1;
+					if (inet_pton(AF_INET, p, &bind_map_entry->ip) != 1) {
+						logd(LOG_WARNING, "bind_ip: %s is not a valid IPv4 address. Ignoring", p);
+						free(bind_map_entry);
+						continue;
+					}
+					bind_map_entry->iname = malloc(str_len);
+					if (bind_map_entry->iname == NULL)
+						process_error(EX_MEM, "malloc");
+					strncpy(bind_map_entry->iname, p1, str_len);
+					STAILQ_INSERT_TAIL(&ip_binding_map_head, bind_map_entry, next);
+					if (!get_ip(p1, NULL, NULL)) {
+						logd(LOG_WARNING, "bind_ip: address %s not found on interface %s. Ignoring", p, p1);
+						STAILQ_REMOVE(&ip_binding_map_head, bind_map_entry, ip_binding_map, next);
+						free(bind_map_entry->iname);
+						free(bind_map_entry);
+					}
+					else
+						logd(LOG_DEBUG, "interface %s binded to address %s", p1, p);
+					continue;
+				}
 				if (strcasecmp(buf, "file") != 0)
-					errx(1, "Unknown option in Server section. Line: %d", line);
+					errx(1, "Unknown option in [Servers] section. Line: %d", line);
 				if ((fs = fopen(p, "r")) == NULL)
 					errx(1, "Can't open servers config file: %s", p);
 				while (fgets(buf, sizeof(buf), fs) != NULL) {
@@ -739,7 +785,7 @@ read_config(const char *filename)
 				logd(LOG_DEBUG, "Option plugin_base set to: %s", plugin_base);
 				continue;
 			}
-			errx(1, "Unknown option. Line: %d", line);
+			errx(1, "Unknown option in [Options] section. Line: %d", line);
 		}
 		if (section == Plugin) {
 			popt = malloc(sizeof(struct plugin_options));
@@ -787,6 +833,7 @@ main(int argc, char *argv[])
 
 	strlcpy(prgname, argv[0], sizeof(prgname));
 	filename[0] = '\0';
+	STAILQ_INIT(&ip_binding_map_head);
 	while ((c = getopt(argc, argv, "A:c:df:hi:p:")) != -1) {
 		switch (c) {
 		case 'A':

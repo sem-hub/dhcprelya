@@ -104,7 +104,6 @@ struct interface {
 	int fd;
 	char name[INTF_NAME_LEN];
 	ip_addr_t ip;
-	ip_addr_t mask;
 	uint8_t mac[6];
 	int bpf;
 	pcap_t *cap;
@@ -117,7 +116,6 @@ struct dhcp_server {
 	struct sockaddr_in sockaddr;
 };
 
-STAILQ_HEAD(queue_head, queue) q_head;
 struct queue {
 	uint8_t *packet;
 	size_t len;
@@ -125,6 +123,12 @@ struct queue {
 	ip_addr_t ip_dst;
 
 	STAILQ_ENTRY(queue) entries;
+};
+
+struct ip_binding_map {
+	char *iname;
+	ip_addr_t ip;
+	STAILQ_ENTRY(ip_binding_map) next;
 };
 
 /* Global options */
@@ -142,8 +146,8 @@ void logd(int log_level, char *fmt,...);
 int get_bool_value(const char *str);
 
 /* net_utils.c */
-int get_mac(char *if_name, char *if_mac);
-int get_ip(char *iname, ip_addr_t *ip, ip_addr_t *mask);
+int get_mac(const char *if_name, char *if_mac);
+int get_ip(const char *iname, ip_addr_t *ip, const ip_addr_t *preferable);
 
 /* Plugins support */
 #define MAX_PLUGINS 20

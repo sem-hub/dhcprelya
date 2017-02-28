@@ -98,7 +98,6 @@ radius_plugin_init(plugin_options_head_t *options_head)
 	char *p, *p1;
 	int i, n = 0, timeout = 5, tries = 3, dead_time = 60;
 	int servers_num = 0, secrets_num = 0;
-	ip_addr_t mask;
 	char **servers = NULL, **secrets = NULL;
 
 	if ((rh = rad_acct_open()) == NULL) {
@@ -174,8 +173,9 @@ radius_plugin_init(plugin_options_head_t *options_head)
 			}
 			logd(LOG_DEBUG, "dead_time set to: %d", dead_time);
 		} else if (strcasecmp(opts->option_line, "bind_to") == 0) {
+			/* Bind to an IP or an interface */
 			if (inet_pton(AF_INET, p, &bind_addr.s_addr) != 1)
-				if (!get_ip(p, &bind_addr.s_addr, &mask)) {
+				if (!get_ip(p, &bind_addr.s_addr, NULL)) {
 					logd(LOG_ERR, "radius_plugin: interface %s not found", p);
 					return 0;
 				}
