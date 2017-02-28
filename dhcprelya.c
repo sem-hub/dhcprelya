@@ -50,7 +50,7 @@
 
 #include "dhcprelya.h"
 
-#define VERSION "5.0"
+#define VERSION "5.1"
 
 /* options */
 /* globals (can check in modules) */
@@ -291,14 +291,14 @@ listener(void *param)
 	int i, n, ignore = 0, packet_count = 0;
 	size_t len;
 	struct interface *intf = param;
-	struct pcap_pkthdr *header;
+	struct pcap_pkthdr *pcap_header;
 	const u_char *packet;
 	uint8_t *p, *p1;
 	struct queue *q;
 	struct timespec tv, last_count_reset_tv = {0, 0};
 
 	while (1) {
-		if ((n = pcap_next_ex(intf->cap, &header, &packet)) > 0) {
+		if ((n = pcap_next_ex(intf->cap, &pcap_header, &packet)) > 0) {
 			/* Drop a packet we got too quickly if we have a RPS
 			 * limit */
 			if (rps_limit && packet_count++ > rps_limit) {
@@ -315,10 +315,10 @@ listener(void *param)
 			if (((struct dhcp_packet *)(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD))->op == BOOTREPLY)
 				continue;
 
-			if (!sanity_check((char *)packet, header->caplen))
+			if (!sanity_check((char *)packet, pcap_header->caplen))
 				continue;
 
-			len = header->caplen;
+			len = pcap_header->caplen;
 			p = malloc(len);
 			if (p == NULL) {
 				logd(LOG_ERR, "malloc error");
@@ -494,11 +494,11 @@ process_server_answer(void *param)
 		udp->uh_sport = bootps_port;
 		udp->uh_dport = bootpc_port;
 		udp->uh_ulen = htons(sizeof(struct udphdr) + psize);
-		udp->uh_sum = 0;	/* UDP checksum is optional. we don't care
-					 * it. */
+		udp->uh_sum = 0;
 
 		memcpy(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, buf, psize);
 		ip->ip_sum = htons(ip_checksum((const char *)ip, sizeof(struct ip)));
+		udp->uh_sum = htons(udp_checksum((const char *)packet));
 
 		len = ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize;
 		ignore = 0;

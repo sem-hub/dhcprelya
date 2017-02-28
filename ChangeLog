@@ -1,3 +1,9 @@
+Changes:
+
+* Compute UDP checksum. iPXE rejects DHCP packets without it. (azryve@yandex-team.ru)
+* Add a struct of headers with #pragma pack for future use.
+* Rename a struct with confusing name 'header' to 'pcap_header'.
+
 dhcprelya v5.0 (Release date: 2017-02-23)
 ==============
 

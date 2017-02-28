@@ -70,6 +70,13 @@
 #define BOOTREQUEST	1
 #define BOOTREPLY	2
 
+#pragma pack(push, 1)
+struct packet_headers {
+	struct ether_header eh;
+	struct ip ip;
+	struct udphdr udp;
+};
+
 struct dhcp_packet {
 	uint8_t op;		/* 0: Message opcode/type */
 	uint8_t htype;		/* 1: Hardware addr type (net/if_types.h) */
@@ -88,6 +95,7 @@ struct dhcp_packet {
 	unsigned char options[DHCP_OPTION_LEN];
 	/* 236: Optional parameters (actual length dependent on MTU). */
 };
+#pragma pack(pop)
 
 typedef in_addr_t ip_addr_t;
 
@@ -122,8 +130,11 @@ struct queue {
 /* Global options */
 extern unsigned debug, max_packet_size;
 
+/* ip_checksum.c */
+short ip_checksum(const char *packet, int count);
+short udp_checksum(const char *packet);
+
 /* utils.c */
-short ip_checksum(const char *addr, int count);
 char *print_mac(uint8_t *s, char *buf);
 char *print_ip(ip_addr_t ip, char *buf);
 char *print_xid(uint32_t ip, char *buf);
