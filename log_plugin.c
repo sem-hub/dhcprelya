@@ -30,6 +30,7 @@
 #include <ctype.h>
 #include <time.h>
 #include <sys/time.h>
+#include <netinet/in.h>
 
 #include "dhcprelya.h"
 #include "dhcp_options.h"
@@ -211,18 +212,25 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 
 	puts("---------------------------------------------------------------------------");
 	printf("op: %d (%s)\n", dhcp->op,
-	       dhcp->op == 1 ? "BOOTREQUEST" : (dhcp->op == 2 ? "BOOTREPLY" : "illegal"));
-	printf("htype: %d (%s)\n", dhcp->htype, dhcp->htype == 1 ? "Ethernet" : "");
+		dhcp->op == 1 ? "BOOTREQUEST" :
+				(dhcp->op == 2 ? "BOOTREPLY" : "illegal"));
+	printf("htype: %d (%s)\n", dhcp->htype, dhcp->htype == 1 ? "Ethernet" :
+									"");
 	printf("hlen: %d\n", dhcp->hlen);
 	printf("hops: %d\n", dhcp->hops);
 	printf("xid: %s\n", print_xid(dhcp->xid, buf));
 	printf("secs: %d\n", dhcp->secs);
 	printf("flags: 0x%X\n", dhcp->flags);
-	printf("ciaddr: %s\n", print_ip(dhcp->ciaddr.s_addr, buf));
-	printf("yiaddr: %s\n", print_ip(dhcp->yiaddr.s_addr, buf));
-	printf("siaddr: %s\n", print_ip(dhcp->siaddr.s_addr, buf));
-	printf("giaddr: %s\n", print_ip(dhcp->giaddr.s_addr, buf));
-	printf("chaddr: %s\n", print_mac(dhcp->chaddr, buf));
+	printf("ciaddr: %s\n", inet_ntop(AF_INET, &dhcp->ciaddr.s_addr,
+					buf, sizeof(buf)));
+	printf("yiaddr: %s\n", inet_ntop(AF_INET, &dhcp->yiaddr.s_addr,
+					buf, sizeof(buf)));
+	printf("siaddr: %s\n", inet_ntop(AF_INET, &dhcp->siaddr.s_addr,
+					buf, sizeof(buf)));
+	printf("giaddr: %s\n", inet_ntop(AF_INET, &dhcp->giaddr.s_addr,
+					buf, sizeof(buf)));
+	printf("chaddr: %s\n", ether_ntoa_r((struct ether_addr*)dhcp->chaddr,
+						buf));
 	printf("sname: %s.\n", dhcp->sname);
 	printf("file: %s.\n", dhcp->file);
 
@@ -233,7 +241,7 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 	j += DHCP_COOKIE_LEN;
 	while (j < data_len && data[j] != 255) {
 		printf("OPTION: %3d (%3d) %-26s", data[j], data[j + 1],
-		       dhcp_options[data[j]]);
+			dhcp_options[data[j]]);
 		switch (data[j]) {
 		default:
 			printHexString(data + j + 2, data[j + 1]);
@@ -247,7 +255,8 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 		case 32:	/* Router solicitation */
 		case 50:	/* Requested IP address */
 		case 54:	/* Server identifier */
-			printf("%s", print_ip(*((uint32_t *)(data + j + 2)), buf));
+			printf("%s", inet_ntop(AF_INET, data + j + 2,
+						buf, sizeof(buf)));
 			break;
 
 		case 12:	/* Hostname */
@@ -299,7 +308,9 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 			for (i = 0; i < data[j + 1] / 4; i++) {
 				if (i != 0)
 					printf(",");
-				printf("%s", print_ip(*((uint32_t *)(data + j + 2 + i * 4)), buf));
+				printf("%s", inet_ntop(AF_INET,
+					data + j + 2 + i * 4,
+					buf, sizeof(buf)));
 			}
 			break;
 
@@ -308,9 +319,13 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 				if (i != 0)
 					printf(",");
 				printf("%s/%s",
-				       print_ip(*((uint32_t *)(data + j + 2 + i * 8)), buf),
-				       print_ip(*((uint32_t *)((data + j + 2 + i * 8) + 4)), buf + 16)
-					);
+					inet_ntop(AF_INET,
+						data + j + 2 + i * 8,
+						buf, sizeof(buf)),
+					inet_ntop(AF_INET,
+						(data + j + 2 + i * 8) + 4,
+						buf+16, sizeof(buf)-16)
+				);
 			}
 			break;
 
@@ -319,9 +334,13 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 				if (i != 0)
 					printf(",");
 				printf("%s %s",
-				       print_ip(*((uint32_t *)(data + j + 2 + i * 8)), buf),
-				       print_ip(*((uint32_t *)((data + j + 2 + i * 8) + 4)), buf + 16)
-					);
+					inet_ntop(AF_INET,
+						data + j + 2 + i * 8,
+						buf, sizeof(buf)),
+					inet_ntop(AF_INET,
+						(data + j + 2 + i * 8) + 4,
+						buf+16, sizeof(buf)-16)
+				);
 			}
 			break;
 
@@ -366,7 +385,7 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 
 		case 46:	/* NetBIOS over TCP/IP node type */
 			printf("%d (%s)",
-			       data[j + 2], netbios_node_type[data[j + 2]]);
+				data[j + 2], netbios_node_type[data[j + 2]]);
 			break;
 
 		case 2:	/* Time offset */
@@ -381,26 +400,26 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 
 		case 36:	/* Ethernet encapsulation */
 			printf("%d (%s)",
-			       data[j + 2],
-			       data[j + 2] > sizeof(ethernet_encapsulation) ?
-			       "*wrong value*" :
-			       ethernet_encapsulation[data[j + 2]]);
+				data[j + 2],
+				data[j + 2] > sizeof(ethernet_encapsulation) ?
+				"*wrong value*" :
+				ethernet_encapsulation[data[j + 2]]);
 			break;
 
 		case 52:	/* Option overload */
 			printf("%d (%s)",
-			       data[j + 2],
-			       data[j + 2] > sizeof(option_overload) ?
-			       "*wrong value*" :
-			       option_overload[data[j + 2]]);
+				data[j + 2],
+				data[j + 2] > sizeof(option_overload) ?
+				"*wrong value*" :
+				option_overload[data[j + 2]]);
 			break;
 
 		case 53:	/* DHCP message type */
 			printf("%d (%s)",
-			       data[j + 2],
-			       data[j + 2] > sizeof(dhcp_message_types) ?
-			       "*wrong value*" :
-			       dhcp_message_types[data[j + 2]]);
+				data[j + 2],
+				data[j + 2] > sizeof(dhcp_message_types) ?
+				"*wrong value*" :
+				dhcp_message_types[data[j + 2]]);
 			break;
 
 		case 55:	/* Parameter Request List */
@@ -430,10 +449,10 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 		case 82:	/* Relay Agent Information */
 			for (i = j + 2; i < j + data[j + 1];) {
 				printf("\n%-5s subopt: %3d (%3d) %-19s ", " ",
-				       data[i], data[i + 1],
-				   data[i] > sizeof(relayagent_suboptions) ?
-				       "*wrong value*" :
-				       relayagent_suboptions[data[i]]);
+					data[i], data[i + 1],
+					data[i] > sizeof(relayagent_suboptions) ?
+					"*wrong value*" :
+					relayagent_suboptions[data[i]]);
 				if (i + data[i + 1] > j + data[j + 1]) {
 					printf("*MALFORMED -- TOO LARGE*\n");
 					break;
@@ -454,7 +473,7 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 
 int
 log_plugin_client_request(const struct interface *intf,
-			  uint8_t **packet, size_t *psize)
+			uint8_t **packet, size_t *psize)
 {
 	char buf[18 * 2 + 11], timebuf[16], logbuf[256];
 	struct dhcp_packet *dhcp;
@@ -465,10 +484,10 @@ log_plugin_client_request(const struct interface *intf,
 		sprintf(logbuf, "%s request on %s XID: %s %s -> %s (%zu bytes)", timebuf,
 			intf->name,
 			print_xid(dhcp->xid, buf),
-			print_mac(((struct ether_header *)*packet)->ether_shost, buf + 11),
-			print_mac(((struct ether_header *)*packet)->ether_dhost, buf + 29),
+			ether_ntoa_r((struct ether_addr*)((struct ether_header *)*packet)->ether_shost, buf+11),
+			ether_ntoa_r((struct ether_addr*)((struct ether_header *)*packet)->ether_dhost, buf+29),
 			*psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD)
-			);
+		);
 		puts(logbuf);
 		if (detailed)
 			print_dhcp_packet(dhcp, *psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
@@ -478,7 +497,7 @@ log_plugin_client_request(const struct interface *intf,
 
 int
 log_plugin_send_to_server(const struct sockaddr_in *server,
-			  uint8_t **packet, size_t *psize)
+			uint8_t **packet, size_t *psize)
 {
 	char buf[16 + 11], timebuf[16], logbuf[256];
 	struct dhcp_packet *dhcp;
@@ -488,9 +507,10 @@ log_plugin_send_to_server(const struct sockaddr_in *server,
 		log_plugin_get_time(timebuf);
 		sprintf(logbuf, "%s send XID: %s to server %s (%zu bytes)", timebuf,
 			print_xid(dhcp->xid, buf),
-			print_ip(server->sin_addr.s_addr, buf + 11),
+			inet_ntop(AF_INET, &server->sin_addr.s_addr,
+					buf+11, sizeof(buf)-11),
 			*psize
-			);
+		);
 		puts(logbuf);
 		if (detailed)
 			print_dhcp_packet(dhcp, *psize);
@@ -509,10 +529,11 @@ log_plugin_server_answer(const struct sockaddr_in *server, uint8_t **packet,
 		dhcp = (struct dhcp_packet *)*packet;
 		log_plugin_get_time(timebuf);
 		sprintf(logbuf, "%s reply from server (%s) XID: %s (%zu bytes)", timebuf,
-			print_ip(server->sin_addr.s_addr, buf),
+			inet_ntop(AF_INET, &server->sin_addr.s_addr,
+				buf, sizeof(buf)),
 			print_xid(dhcp->xid, buf + 16),
 			*psize
-			);
+		);
 		puts(logbuf);
 		if (detailed)
 			print_dhcp_packet(dhcp, *psize);
@@ -522,8 +543,8 @@ log_plugin_server_answer(const struct sockaddr_in *server, uint8_t **packet,
 
 int
 log_plugin_send_to_client(const struct sockaddr_in *server,
-			  const struct interface *intf, uint8_t **packet,
-			  size_t *psize)
+			const struct interface *intf, uint8_t **packet,
+			size_t *psize)
 {
 	char buf[11 + 16 + 18], timebuf[16], logbuf[256];
 	struct ip *ip;
@@ -537,13 +558,16 @@ log_plugin_send_to_client(const struct sockaddr_in *server,
 
 		log_plugin_get_time(timebuf);
 		sprintf(logbuf, "%s (from %s) send XID: %s for %s via %s (%zu bytes)", timebuf,
-			print_ip(server->sin_addr.s_addr, buf),
-			print_xid(dhcp->xid, buf + 16), print_mac(dhcp->chaddr, buf + 27),
-		    intf->name, *psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD)
-			);
+			inet_ntop(AF_INET, &server->sin_addr.s_addr,
+					buf, sizeof(buf)),
+			print_xid(dhcp->xid, buf + 16),
+			ether_ntoa_r((struct ether_addr*)dhcp->chaddr, buf+27),
+			intf->name, *psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD)
+		);
 		puts(logbuf);
 		if (detailed)
-			print_dhcp_packet(dhcp, *psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
+			print_dhcp_packet(dhcp,
+				*psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
 	}
 	return 1;
 }

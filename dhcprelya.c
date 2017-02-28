@@ -33,10 +33,8 @@
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/param.h>
-#include <sys/socket.h>
 #include <sys/time.h>
 #include <sys/select.h>
-#include <arpa/inet.h>
 #include <net/if.h>
 #include <net/bpf.h>
 #include <sys/ioctl.h>
@@ -195,7 +193,7 @@ open_interface(const char *iname)
 	if ((ifs[if_num]->cap = pcap_open_live(iname, max_packet_size, 0, 100, errbuf)) == NULL)
 		process_error(EX_RES, "pcap_open_live(%s): %s", iname, errbuf);
 	sprintf(filtstr, "udp and dst port bootps and not ether src %s",
-		print_mac(ifs[if_num]->mac, buf));
+		ether_ntoa_r((struct ether_addr*)ifs[if_num]->mac, buf));
 	if (pcap_compile(ifs[if_num]->cap, &fp, filtstr, 0, 0) < 0)
 		process_error(EX_RES, "pcap_compile");
 	if (pcap_setfilter(ifs[if_num]->cap, &fp) < 0)
@@ -216,8 +214,9 @@ open_interface(const char *iname)
 	if (bind(ifs[if_num]->fd, (struct sockaddr *)&baddr, sizeof(baddr)) < 0)
 		process_error(EX_RES, "bind: %s", strerror(errno));
 
-	logd(LOG_WARNING, "Listen at %s: %s, %s", iname, print_ip(ifs[if_num]->ip, buf),
-		print_mac(ifs[if_num]->mac, buf + 32));
+	logd(LOG_WARNING, "Listen at %s: %s, %s", iname,
+		inet_ntop(AF_INET, &ifs[if_num]->ip, buf, sizeof(buf)),
+		ether_ntoa_r((struct ether_addr*)ifs[if_num]->mac, buf + 32));
 
 	if_num++;
 	return 1;
@@ -228,6 +227,7 @@ open_server(const char *server_spec)
 {
 	struct hostent *hostent;
 	char buf[16], *p;
+	const char *server_addr;
 	int port = bootps_port;
 	char *name = strdup(server_spec);
 
@@ -265,8 +265,15 @@ open_server(const char *server_spec)
 
 	srv_num++;
 
-	logd(LOG_WARNING, "DHCP server #%d: %s (%s)", srv_num, name,
-		print_ip(servers[srv_num - 1]->sockaddr.sin_addr.s_addr, buf));
+	server_addr = inet_ntop(AF_INET,
+		&servers[srv_num - 1]->sockaddr.sin_addr.s_addr, buf,
+		sizeof(buf));
+	/* Server specified by name or by IP? */
+	if (strncmp(name, server_addr, sizeof(buf)) == 0)
+		logd(LOG_WARNING, "DHCP server #%d: %s", srv_num, name);
+	else
+		logd(LOG_WARNING, "DHCP server #%d: %s (%s)", srv_num, name,
+			server_addr);
 
 	free(name);
 	return 1;
@@ -480,7 +487,8 @@ process_server_answer(void *param)
 		if_idx = find_interface(*((ip_addr_t *)&dhcp->giaddr));
 		if (if_idx == if_num) {
 			logd(LOG_ERR, "Destination interface not found for: %s",
-				print_ip(*((ip_addr_t *)&dhcp->giaddr), pbuf));
+				inet_ntop(AF_INET, &dhcp->giaddr, pbuf,
+				sizeof(pbuf)));
 			free(buf);
 			continue;
 		}

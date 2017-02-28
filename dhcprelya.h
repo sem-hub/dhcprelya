@@ -30,9 +30,11 @@
 #include <sys/types.h>
 #include <sys/mac.h>
 #include <sys/queue.h>
-#include <net/ethernet.h>
+#include <sys/socket.h>
 #include <netinet/in_systm.h>
 #include <netinet/in.h>
+#include <net/ethernet.h>
+#include <arpa/inet.h>
 #include <netinet/ip.h>
 #include <netinet/udp.h>
 #include <pcap.h>
@@ -139,8 +141,6 @@ short ip_checksum(const char *packet, int count);
 short udp_checksum(const char *packet);
 
 /* utils.c */
-char *print_mac(uint8_t *s, char *buf);
-char *print_ip(ip_addr_t ip, char *buf);
 char *print_xid(uint32_t ip, char *buf);
 void logd(int log_level, char *fmt,...);
 int get_bool_value(const char *str);

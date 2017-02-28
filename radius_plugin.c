@@ -61,11 +61,13 @@ send_acct(void *packet)
 		logd(LOG_ERR, "radius_plugin: rad_put_int(RAD_ACCT_STATUS_TYPE) error");
 		goto end;
 	}
-	if (rad_put_string(rh, RAD_USER_NAME, print_mac(dhcp->chaddr, buf)) == -1) {
+	if (rad_put_string(rh, RAD_USER_NAME,
+		ether_ntoa_r((struct ether_addr*)dhcp->chaddr, buf)) == -1) {
 		logd(LOG_ERR, "radius_plugin: rad_put_string()");
 		goto end;
 	}
-	if (rad_put_string(rh, RAD_CALLING_STATION_ID, print_mac(dhcp->chaddr, buf)) == -1) {
+	if (rad_put_string(rh, RAD_CALLING_STATION_ID,
+		ether_ntoa_r((struct ether_addr*)dhcp->chaddr, buf)) == -1) {
 		logd(LOG_ERR, "radius_plugin: rad_put_string()");
 		goto end;
 	}
@@ -221,7 +223,7 @@ radius_plugin_init(plugin_options_head_t *options_head)
 	}
 	for (i = 0; i < servers_num; i++)
 		if (rad_add_server_ex(rh, servers[i], 0, secrets_num == 1 ? secrets[0] : secrets[i],
-			     timeout, tries, dead_time, &bind_addr) == -1) {
+				timeout, tries, dead_time, &bind_addr) == -1) {
 			logd(LOG_ERR, "radius_plugin: rad_add_server_ex(%s) error", servers[i]);
 			return 0;
 		}

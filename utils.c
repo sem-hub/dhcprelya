@@ -34,27 +34,6 @@
 extern unsigned debug;
 
 char *
-print_mac(uint8_t *s, char *buf)
-{
-	sprintf(buf, "%02x:%02x:%02x:%02x:%02x:%02x",
-		s[0], s[1], s[2], s[3], s[4], s[5]);
-	return buf;
-}
-
-char *
-print_ip(ip_addr_t ip, char *buf)
-{
-	union {
-		ip_addr_t n;
-		uint8_t b[4];
-	} u;
-
-	u.n = ip;
-	sprintf(buf, "%u.%u.%u.%u", u.b[0], u.b[1], u.b[2], u.b[3]);
-	return buf;
-}
-
-char *
 print_xid(uint32_t ip, char *buf)
 {
 	union {

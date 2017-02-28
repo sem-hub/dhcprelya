@@ -1,5 +1,7 @@
 Changes:
 
+* Remove obsolated print_ip(), print_mac() functions. inet_ntop() and
+  ether_ntoa_r() do good work.
 * Add IP binding for client interfaces. In case when there are many IP
   addresses present on interface we can now specify an IP address on which
   we want to listen. (xornet@yandex-team.ru)
