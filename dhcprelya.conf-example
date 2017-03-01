@@ -10,6 +10,7 @@
 # specified server-interfases lines.
 #file=/path/to/file
 # Specify DHCP servers for requests from the interfaces.
+# DHCP server may be specified by FQDN or IP.
 dhcpserver1 vlan1 vlan2 vlan3
 # Use non-standard port for this server. DHCP requests from vlan1 interface 
 # will copy on both dhcpserver1 and dhcpserver2 (a fault tolerance scheme).
@@ -45,11 +46,9 @@ dhcpserver2:1067 vlan1 vlan5
 # Send Account-Start to radius (using radius-client library)
 #only_for=vlan1 vlan5
 
-#[log-plugin]
-#detailed=yes
-#print_only_incoming=yes
-
 #[option82-plugin]
+# Activate plugin only for listed interfaces
+#only_for=vlan1 vlan2
 #drop_untrusted=yes
 # List of Remote IDs of trusted circuits
 # may be strings or hexadecimal (spaces separated)
@@ -63,3 +62,13 @@ dhcpserver2:1067 vlan1 vlan5
 # exclude trusted_circuits
 #never_strip_answer=no
 #always_strip_anwer=no
+# Enable suboption 5 in option 82 (Link Selection, RFC 3527) on client interfaces
+# if link selection enabled on interface vlan1, then in all requsest from that
+# interface suboption 5 will be inserted with IP address on which dhcprelya is bound
+#enable_link_selection_for=vlan1,vlan2
+
+# It's a good idea to place log-plugin the last always. So we can see all results of
+# packet procession by preceding plugins.
+#[log-plugin]
+#detailed=yes
+#print_only_incoming=yes
