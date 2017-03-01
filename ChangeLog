@@ -1,3 +1,6 @@
+dhcprelya v5.1 (Release date: 2017-03-01)
+==============
+
 Changes:
 
 * Remove obsolated print_ip(), print_mac() functions. inet_ntop() and
