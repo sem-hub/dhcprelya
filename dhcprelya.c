@@ -308,6 +308,10 @@ sanity_check(const char *packet, const unsigned len)
 	ip = (struct ip *)(packet + ETHER_HDR_LEN);
 	udp = (struct udphdr *)(packet + ETHER_HDR_LEN + sizeof(struct ip));
 
+	if (len > max_packet_size) {
+		logd(LOG_ERR, "length too big -- packet discarded");
+		return 0;
+	}
 	if (len < ETHER_HDR_LEN + DHCP_FIXED_LEN) {
 		logd(LOG_ERR, "length too little -- packet discarded");
 		return 0;
@@ -320,6 +324,22 @@ sanity_check(const char *packet, const unsigned len)
 		logd(LOG_ERR, "not enough DHCP data -- packet ignore");
 		return 0;
 	}
+
+	p = ((struct dhcp_packet *)(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD))->options + DHCP_COOKIE_LEN;
+	passed = p - (uint8_t *)packet;
+	while (passed < len && *p != 255) {
+		if (*p == 0)
+			p++;
+		else
+			p += p[1] + 2;
+		passed = p - (uint8_t *)packet;
+	}
+	if ((passed == len && *p != 255) ||
+		(passed > len)) {
+		logd(LOG_ERR, "malformed dhcp packet (can't find option 255) -- packet ignore");
+		return 0;
+	}
+
 	return 1;
 }
 
@@ -351,11 +371,12 @@ listener(void *param)
 					packet_count = 0;
 				}
 			}
-			/* Discard BOOTREPLY from client */
-			if (((struct dhcp_packet *)(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD))->op == BOOTREPLY)
-				continue;
 
 			if (!sanity_check((char *)packet, pcap_header->caplen))
+				continue;
+
+			/* Discard BOOTREPLY from client */
+			if (((struct dhcp_packet *)(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD))->op == BOOTREPLY)
 				continue;
 
 			len = pcap_header->caplen;
