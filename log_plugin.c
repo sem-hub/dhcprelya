@@ -491,88 +491,84 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 
 int
 log_plugin_client_request(const struct interface *intf,
-			uint8_t **packet, size_t *psize)
+				struct dhcp_packet *dhcp, struct packet_headers *headers)
 {
 	char buf[18 * 2 + 11], timebuf[16], logbuf[256];
-	struct dhcp_packet *dhcp;
+	size_t dhcp_len;
 
 	if (debug) {
-		dhcp = (struct dhcp_packet *)(*packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD);
+		dhcp_len = get_dhcp_len(dhcp);
 		log_plugin_get_time(timebuf);
 		sprintf(logbuf, "%s request on %s XID: %s %s -> %s (%zu bytes)", timebuf,
 			intf->name,
 			print_xid(dhcp->xid, buf),
-			ether_ntoa_r((struct ether_addr*)((struct ether_header *)*packet)->ether_shost, buf+11),
-			ether_ntoa_r((struct ether_addr*)((struct ether_header *)*packet)->ether_dhost, buf+29),
-			*psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD)
+			ether_ntoa_r((struct ether_addr*)headers->eh.ether_shost, buf+11),
+			ether_ntoa_r((struct ether_addr*)headers->eh.ether_dhost, buf+29),
+			dhcp_len
 		);
 		puts(logbuf);
 		if (detailed)
-			print_dhcp_packet(dhcp, *psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
+			print_dhcp_packet(dhcp, dhcp_len);
 	}
 	return 1;
 }
 
 int
 log_plugin_send_to_server(const struct sockaddr_in *server,
-			uint8_t **packet, size_t *psize)
+				const struct interface *input_intf, struct dhcp_packet *dhcp)
 {
 	char buf[16 + 11], timebuf[16], logbuf[256];
-	struct dhcp_packet *dhcp;
+	size_t dhcp_len;
 
 	if (debug && !print_only_incoming) {
-		dhcp = (struct dhcp_packet *)*packet;
+		dhcp_len = get_dhcp_len(dhcp);
 		log_plugin_get_time(timebuf);
 		sprintf(logbuf, "%s send XID: %s to server %s (%zu bytes)", timebuf,
 			print_xid(dhcp->xid, buf),
 			inet_ntop(AF_INET, &server->sin_addr.s_addr,
 					buf+11, sizeof(buf)-11),
-			*psize
+			dhcp_len
 		);
 		puts(logbuf);
 		if (detailed)
-			print_dhcp_packet(dhcp, *psize);
+			print_dhcp_packet(dhcp, dhcp_len);
 	}
 	return 1;
 }
 
 int
-log_plugin_server_answer(const struct sockaddr_in *server, uint8_t **packet,
-			 size_t *psize)
+log_plugin_server_answer(const struct sockaddr_in *server,
+				struct dhcp_packet *dhcp)
 {
 	char buf[16 + 11], timebuf[16], logbuf[256];
-	struct dhcp_packet *dhcp;
+	size_t dhcp_len;
 
 	if (debug) {
-		dhcp = (struct dhcp_packet *)*packet;
+		dhcp_len = get_dhcp_len(dhcp);
 		log_plugin_get_time(timebuf);
 		sprintf(logbuf, "%s reply from server (%s) XID: %s (%zu bytes)", timebuf,
 			inet_ntop(AF_INET, &server->sin_addr.s_addr,
 				buf, sizeof(buf)),
 			print_xid(dhcp->xid, buf + 16),
-			*psize
+			dhcp_len
 		);
 		puts(logbuf);
 		if (detailed)
-			print_dhcp_packet(dhcp, *psize);
+			print_dhcp_packet(dhcp, dhcp_len);
 	}
 	return 1;
 }
 
 int
 log_plugin_send_to_client(const struct sockaddr_in *server,
-			const struct interface *intf, uint8_t **packet,
-			size_t *psize)
+			const struct interface *intf,
+			struct dhcp_packet *dhcp, struct packet_headers *headers)
 {
 	char buf[11 + 16 + 18], timebuf[16], logbuf[256];
-	struct ip *ip;
-	struct udphdr *udp;
-	struct dhcp_packet *dhcp;
+	size_t dhcp_len;
 
 	if (debug && !print_only_incoming) {
-		ip = (struct ip *)(*packet + ETHER_HDR_LEN);
-		udp = (struct udphdr *)(*packet + ETHER_HDR_LEN + sizeof(struct ip));
-		dhcp = (struct dhcp_packet *)(*packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD);
+		dhcp_len = get_dhcp_len(dhcp);
 
 		log_plugin_get_time(timebuf);
 		sprintf(logbuf, "%s (from %s) send XID: %s for %s via %s (%zu bytes)", timebuf,
@@ -580,12 +576,11 @@ log_plugin_send_to_client(const struct sockaddr_in *server,
 					buf, sizeof(buf)),
 			print_xid(dhcp->xid, buf + 16),
 			ether_ntoa_r((struct ether_addr*)dhcp->chaddr, buf+27),
-			intf->name, *psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD)
+			intf->name, dhcp_len
 		);
 		puts(logbuf);
 		if (detailed)
-			print_dhcp_packet(dhcp,
-				*psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
+			print_dhcp_packet(dhcp, dhcp_len);
 	}
 	return 1;
 }

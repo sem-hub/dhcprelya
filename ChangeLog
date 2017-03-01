@@ -1,7 +1,17 @@
+dhcprelya v6.0 (Release date: 2017-03-NN)
+==============
+
 Changes:
 
-* dhcp_utils.c - utils for working with DHCP options and get_dhcp_len()
-* add get_interface_by_idx() and get_interface_by_name()
+* dhcp_utils.c - utils for working with DHCP options
+  and get_dhcp_len() (xornet@yandex-team.ru)
+* Add get_interface_by_idx() and get_interface_by_name() (xornet@yandex-team.ru)
+* Improve sanity_check() (xornet@yandex-team.ru)
+* Change parsing and building packages. Split headers and DHCP data. (xornet@yandex-team.ru)
+* Change plugin API to satisfy above changes. (xornet@yandex-team.ru)
+* Calculate new length and checksum for packets after plugins processing. Plugin don't need
+  care about this now. (xornet@yandex-team.ru)
+* option82_plugin: reworked by Yandex's contributors.
 
 dhcprelya v5.1 (Release date: 2017-03-01)
 ==============

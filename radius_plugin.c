@@ -243,14 +243,15 @@ radius_plugin_destroy()
 
 int
 radius_plugin_send_to_client(const struct sockaddr_in *server,
-		 const struct interface *intf, uint8_t **buf, size_t *psize)
+				const struct interface *intf,
+				struct dhcp_packet *dhcp, struct packet_headers *headers)
 {
 	pthread_t tid;
 	int i;
 	uint8_t *b;
 	size_t dhcp_len;
 
-	b = find_option((struct dhcp_packet *)*buf + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, 53);
+	b = find_option(dhcp, 53);
 	/* If it's not DHCPACK. Just pass the packet. */
 	if (!b || b[2] != 5)
 		return 1;
@@ -261,13 +262,13 @@ radius_plugin_send_to_client(const struct sockaddr_in *server,
 			break;
 
 	if (only_for_num == 0 || i < only_for_num) {
-		dhcp_len = get_dhcp_len((struct dhcp_packet *)*buf + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD);
+		dhcp_len = get_dhcp_len(dhcp);
 		b = malloc(dhcp_len);
 		if (b == NULL) {
 			logd(LOG_ERR, "radius_plugin: malloc error");
 			return 0;
 		}
-		memcpy(b, *buf + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, dhcp_len);
+		memcpy(b, dhcp, dhcp_len);
 		pthread_create(&tid, NULL, send_acct, b);
 		pthread_detach(tid);
 	}

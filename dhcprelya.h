@@ -39,7 +39,6 @@
 #include <netinet/udp.h>
 #include <pcap.h>
 #include <libutil.h>
-#include <sys/queue.h>
 #include <syslog.h>
 
 #define	IF_MAX		100	/* Max interfaces supported */
@@ -119,8 +118,7 @@ struct dhcp_server {
 };
 
 struct queue {
-	uint8_t *packet;
-	size_t len;
+	struct dhcp_packet dhcp;
 	int if_idx;
 	ip_addr_t ip_dst;
 
@@ -173,25 +171,20 @@ struct plugin_options {
 };
 typedef SLIST_HEAD(opt_head, plugin_options) plugin_options_head_t;
 
-/* Be aware:
- * 
- * client_request() gets a packet with link-level headers send_to_server() gets
- * a stripped packet server_answer() gets a stripped packet send_to_client()
- * gets a packet with link-level header */
 struct plugin_data {
 	char *name;
 	int (*init) (plugin_options_head_t *poptions);
 	void (*destroy) ();
 	/* packet buffer could be reallocated in functions bellow */
 	int (*client_request) (const struct interface *intf,
-				uint8_t **packet, size_t *psize);
+				struct dhcp_packet *dhcp, struct packet_headers *headers);
 	int (*send_to_server) (const struct sockaddr_in *server,
-				uint8_t **packet, size_t *psize);
+				const struct interface *input_intf, struct dhcp_packet *dhcp);
 	int (*server_answer) (const struct sockaddr_in *server,
-				uint8_t **packet, size_t *psize);
+				struct dhcp_packet *dhcp);
 	int (*send_to_client) (const struct sockaddr_in *server,
-				const struct interface *intf, uint8_t **packet,
-				size_t *psize);
+				const struct interface *intf,
+				struct dhcp_packet *dhcp, struct packet_headers *headers);
 };
 
 #endif

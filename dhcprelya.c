@@ -303,6 +303,8 @@ sanity_check(const char *packet, const unsigned len)
 	struct ether_header *eh;
 	struct ip *ip;
 	struct udphdr *udp;
+	uint8_t *p;
+	int passed;
 
 	eh = (struct ether_header *)packet;
 	ip = (struct ip *)(packet + ETHER_HDR_LEN);
@@ -349,13 +351,13 @@ void *
 listener(void *param)
 {
 	int i, n, ignore = 0, packet_count = 0;
-	size_t len;
 	struct interface *intf = param;
 	struct pcap_pkthdr *pcap_header;
 	const u_char *packet;
-	uint8_t *p, *p1;
 	struct queue *q;
 	struct timespec tv, last_count_reset_tv = {0, 0};
+	struct packet_headers headers;
+	struct dhcp_packet dhcp;
 
 	while (1) {
 		if ((n = pcap_next_ex(intf->cap, &pcap_header, &packet)) > 0) {
@@ -379,52 +381,31 @@ listener(void *param)
 			if (((struct dhcp_packet *)(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD))->op == BOOTREPLY)
 				continue;
 
-			len = pcap_header->caplen;
-			p = malloc(len);
-			if (p == NULL) {
-				logd(LOG_ERR, "malloc error");
-				continue;
-			}
-			memcpy(p, packet, len);
+			memcpy(&headers, packet, sizeof(struct packet_headers));
+			bzero(&dhcp, sizeof(struct dhcp_packet));
+			memcpy(&dhcp, packet + sizeof(struct packet_headers), pcap_header->caplen - sizeof(struct packet_headers));
 
 			/* If a plugin returns 0, ignore the packet */
 			for (i = 0; i < plugins_number; i++) {
 				if (plugins[i]->client_request)
-					if (plugins[i]->client_request(intf, &p, &len) == 0) {
+					if (plugins[i]->client_request(intf, &dhcp, &headers) == 0) {
 						logd(LOG_WARNING, "The packet rejected by %s plugin", plugins[i]->name);
 						ignore = 1;
 						break;
 					}
 			}
-			if (ignore) {
-				free(p);
+			if (ignore)
 				continue;
-			}
-			/* We need no headers anymore, store the packet
-			 * without them */
-			p1 = malloc(len - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
-			if (p1 == NULL) {
-				logd(LOG_ERR, "malloc error");
-				free(p);
-				continue;
-			}
-			len -= ETHER_HDR_LEN + DHCP_UDP_OVERHEAD;
-			memcpy(p1, p + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, len);
-			/* We'll free *p after saving ip_dist */
 
 			q = malloc(sizeof(struct queue));
-			if (p1 == NULL) {
+			if (q == NULL) {
 				logd(LOG_ERR, "malloc error");
-				free(p);
-				free(p1);
 				continue;
 			}
-			q->packet = p1;
-			q->len = len;
+
+			memcpy(&q->dhcp, &dhcp, sizeof(struct dhcp_packet));
 			q->if_idx = intf->idx;
-			q->ip_dst = ((struct ip *)(p + ETHER_HDR_LEN))->ip_dst.s_addr;
-			/* We don't need *p anymore */
-			free(p);
+			q->ip_dst = headers.ip.ip_dst.s_addr;
 
 			pthread_mutex_lock(&queue_lock);
 			STAILQ_INSERT_TAIL(&q_head, q, entries);
@@ -446,11 +427,9 @@ void *
 process_server_answer(void *param)
 {
 	struct sockaddr_in from_addr;
-	struct dhcp_packet *dhcp = NULL;
-	struct ether_header *eh;
-	struct ip *ip;
-	struct udphdr *udp;
-	uint8_t *buf = NULL, *packet = NULL;
+	struct dhcp_packet dhcp;
+	struct packet_headers headers;
+	uint8_t *packet = NULL;
 	char pbuf[11 + 16 + 19];
 	socklen_t from_len = sizeof(from_addr);
 	int i, j, fdmax = 0, ignore, if_idx;
@@ -473,16 +452,11 @@ process_server_answer(void *param)
 					 * from_addr.sin_port = bootps_port; */
 					from_len = sizeof(from_addr);
 
-					buf = malloc(max_packet_size);
-					if (buf == NULL) {
-						logd(LOG_ERR, "malloc error");
-						continue;
-					}
-					psize = recvfrom(ifs[i]->fd, buf, max_packet_size, 0,
-						(struct sockaddr *)&from_addr, &from_len);
+					psize = recvfrom(ifs[i]->fd, (void *)&dhcp,
+								max_packet_size - ETHER_HDR_LEN - DHCP_UDP_OVERHEAD, 0,
+								(struct sockaddr *)&from_addr, &from_len);
 					if (psize < DHCP_MIN_SIZE) {
 						logd(LOG_WARNING, "A little data from server: %zu < %d", psize, DHCP_MIN_SIZE);
-						free(buf);
 						continue;
 					}
 					/* If a plugin returns 0, stop processing and
@@ -490,7 +464,7 @@ process_server_answer(void *param)
 					ignore = 0;
 					for (j = 0; j < plugins_number; j++) {
 						if (plugins[j]->server_answer)
-							if (plugins[j]->server_answer(&from_addr, &buf, &psize) == 0) {
+							if (plugins[j]->server_answer(&from_addr, &dhcp) == 0) {
 								logd(LOG_WARNING, "The packet rejected by %s plugin",
 									plugins[j]->name);
 								ignore = 1;
@@ -498,10 +472,15 @@ process_server_answer(void *param)
 							}
 					}
 
-					if (ignore) {
-						free(buf);
-						continue;
+					psize = get_dhcp_len(&dhcp);
+					if (!psize) {
+						logd(LOG_ERR, "server_answer: plugins generated wrong packet. Dropped.");
+						ignore = 1;
 					}
+
+					if (ignore)
+						continue;
+
 					/* Only one packet! */
 					break;
 				}
@@ -510,76 +489,82 @@ process_server_answer(void *param)
 			continue;
 		}
 
-		dhcp = (struct dhcp_packet *)buf;
-		/* Generate a new packet to send to a client */
-		packet = malloc(ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize);
-		if (packet == NULL) {
-			logd(LOG_ERR, "malloc error");
-			free(buf);
-			continue;
-		}
-		bzero(packet, ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize);
-		eh = (struct ether_header *)packet;
-		ip = (struct ip *)(packet + ETHER_HDR_LEN);
-		udp = (struct udphdr *)(packet + ETHER_HDR_LEN + sizeof(struct ip));
-
-		if_idx = find_interface(*((ip_addr_t *)&dhcp->giaddr));
+		bzero(&headers, sizeof(struct packet_headers));
+		if_idx = find_interface(*((ip_addr_t *)&dhcp.giaddr));
 		if (if_idx == if_num) {
 			logd(LOG_ERR, "Destination interface not found for: %s",
-				inet_ntop(AF_INET, &dhcp->giaddr, pbuf,
+				inet_ntop(AF_INET, &dhcp.giaddr, pbuf,
 				sizeof(pbuf)));
-			free(buf);
 			continue;
 		}
-		memcpy(eh->ether_shost, ifs[if_idx]->mac, ETHER_ADDR_LEN);
-		eh->ether_type = htons(ETHERTYPE_IP);
 
-		ip->ip_v = IPVERSION;
-		ip->ip_hl = 5;		/* IP header length is 5 word (no options) */
-		ip->ip_tos = IPTOS_LOWDELAY;
-		ip->ip_len = htons(sizeof(struct ip) + sizeof(struct udphdr) + psize);
-		ip->ip_id = 0;
-		ip->ip_off = 0;
-		ip->ip_ttl = 16;
-		ip->ip_p = IPPROTO_UDP;
-		ip->ip_sum = 0;
-		memcpy(&ip->ip_src, &ifs[if_idx]->ip, sizeof(ip_addr_t));
+		memcpy(headers.eh.ether_shost, ifs[if_idx]->mac, ETHER_ADDR_LEN);
+		headers.eh.ether_type = htons(ETHERTYPE_IP);
+		headers.ip.ip_v = IPVERSION;
+		headers.ip.ip_hl = 5;		/* IP header length is 5 word (no options) */
+		headers.ip.ip_tos = IPTOS_LOWDELAY;
+		headers.ip.ip_len = htons(sizeof(struct ip) + sizeof(struct udphdr) + psize);
+		headers.ip.ip_id = 0;
+		headers.ip.ip_off = 0;
+		headers.ip.ip_ttl = 16;
+		headers.ip.ip_p = IPPROTO_UDP;
+		headers.ip.ip_sum = 0;
+		memcpy(&headers.ip.ip_src, &ifs[if_idx]->ip, sizeof(ip_addr_t));
 		/* Broadcast flag */
-		if (dhcp->op == BOOTREPLY && dhcp->flags & 0x80) {
-			ip->ip_dst.s_addr = INADDR_BROADCAST;
-			memset(eh->ether_dhost, 0xff, ETHER_ADDR_LEN);
+		if (dhcp.op == BOOTREPLY && dhcp.flags & 0x80) {
+			headers.ip.ip_dst.s_addr = INADDR_BROADCAST;
+			memset(headers.eh.ether_dhost, 0xff, ETHER_ADDR_LEN);
 		} else {
-			memcpy(&ip->ip_dst, &dhcp->yiaddr, sizeof(ip_addr_t));
-			memcpy(eh->ether_dhost, dhcp->chaddr, ETHER_ADDR_LEN);
+			memcpy(&headers.ip.ip_dst, &dhcp.yiaddr, sizeof(ip_addr_t));
+			memcpy(headers.eh.ether_dhost, dhcp.chaddr, ETHER_ADDR_LEN);
 		}
 
-		udp->uh_sport = bootps_port;
-		udp->uh_dport = bootpc_port;
-		udp->uh_ulen = htons(sizeof(struct udphdr) + psize);
-		udp->uh_sum = 0;
+		headers.udp.uh_sport = bootps_port;
+		headers.udp.uh_dport = bootpc_port;
+		headers.udp.uh_ulen = htons(sizeof(struct udphdr) + psize);
+		headers.udp.uh_sum = 0;
 
-		memcpy(packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, buf, psize);
-		ip->ip_sum = htons(ip_checksum((const char *)ip, sizeof(struct ip)));
-		udp->uh_sum = htons(udp_checksum((const char *)packet));
-
-		len = ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize;
 		ignore = 0;
 		for (j = 0; j < plugins_number; j++) {
 			if (plugins[j]->send_to_client)
 				if (plugins[j]->send_to_client(&from_addr, ifs[if_idx],
-								&packet, &len) == 0) {
+								&dhcp, &headers) == 0) {
 					logd(LOG_WARNING, "The packet rejected by %s plugin", plugins[j]->name);
 					ignore = 1;
 					break;
 				}
 		}
 
-		if (!ignore)
-			if ((i = write(ifs[if_idx]->bpf, packet, len)) != len)
-				logd(LOG_ERR, "bpf write failed for %s while trying to write %d bytes (%d bytes wrote): %s", ifs[if_idx]->name, len, i, strerror(errno));
+		if (ignore)
+			continue;
+
+		psize = get_dhcp_len(&dhcp);
+		if (!psize) {
+			logd(LOG_ERR, "send_to_client: plugins generated wrong packet. Dropped.");
+			continue;
+		}
+
+		len = ETHER_HDR_LEN + DHCP_UDP_OVERHEAD + psize;
+		packet = malloc(len);
+		if (packet == NULL) {
+			logd(LOG_ERR, "malloc error");
+			continue;
+		}
+
+		headers.ip.ip_len = htons(sizeof(struct ip) + sizeof(struct udphdr) + psize);
+		headers.udp.uh_ulen = htons(sizeof(struct udphdr) + psize);
+		headers.ip.ip_sum = 0;
+		headers.ip.ip_sum = htons(ip_checksum((const char *)&headers.ip, sizeof(struct ip)));
+		bzero(packet, len);
+		memcpy(packet, &headers, sizeof(struct packet_headers));
+		memcpy(packet + sizeof(struct packet_headers), &dhcp, psize);
+		
+		headers.udp.uh_sum = htons(udp_checksum((const char *)packet));
+
+		if ((i = write(ifs[if_idx]->bpf, packet, len)) != len)
+			logd(LOG_ERR, "bpf write failed for %s while trying to write %d bytes (%d bytes wrote): %s", ifs[if_idx]->name, len, i, strerror(errno));
 
 		free(packet);
-		free(buf);
 	}
 }
 
@@ -587,43 +572,42 @@ process_server_answer(void *param)
 void
 process_queue(struct queue *q)
 {
-	int i, j, ignore, sent = 0;
-	struct dhcp_packet *dhcp;
-
-	dhcp = (struct dhcp_packet *)q->packet;
+	int i, j, ignore;
+	size_t len;
 
 	/* Check the packet pass too many hops */
-	if (dhcp->hops >= max_hops) {
-		free(q->packet);
+	if (q->dhcp.hops >= max_hops) {
 		free(q);
 		return;
 	}
-	dhcp->hops++;
-	if (dhcp->giaddr.s_addr == 0)
-		memcpy(&dhcp->giaddr, &ifs[q->if_idx]->ip, sizeof(ip_addr_t));
+	q->dhcp.hops++;
+	if (q->dhcp.giaddr.s_addr == 0)
+		memcpy(&q->dhcp.giaddr, &ifs[q->if_idx]->ip, sizeof(ip_addr_t));
 	for (i = 0; i < ifs[q->if_idx]->srv_num; i++) {
 		ignore = 0;
 		for (j = 0; j < plugins_number; j++) {
 			if (plugins[j]->send_to_server)
 				if (plugins[j]->send_to_server(&(servers[ifs[q->if_idx]->srvrs[i]]->sockaddr),
-						&q->packet, &q->len) == 0) {
+						ifs[q->if_idx], &q->dhcp) == 0) {
 					logd(LOG_WARNING, "The packet rejected by %s plugin",
 						plugins[j]->name);
 					ignore = 1;
 					break;
 				}
 		}
+		len = get_dhcp_len(&q->dhcp);
+		if (!len) {
+			logd(LOG_ERR, "send_to_server: plugins generated wrong packet. Dropped.");
+			ignore = 1;
+		}
 
-		if (!ignore) {
-			sendto(ifs[q->if_idx]->fd, q->packet,
-				q->len, 0,
+		if (!ignore)
+			sendto(ifs[q->if_idx]->fd, &q->dhcp,
+				len, 0,
 				(struct sockaddr *)&servers[ifs[q->if_idx]->srvrs[i]]->sockaddr,
 				sizeof(struct sockaddr_in));
-			sent++;
-		}
 	}
 
-	free(q->packet);
 	free(q);
 }
 

@@ -11,7 +11,7 @@ RADIUS_PLUGIN=	${PROGNAME}_radius_plugin.so
 OPTION82_PLUGIN=	${PROGNAME}_option82_plugin.so
 ALL_PLUGINS=	${LOG_PLUGIN} ${RADIUS_PLUGIN} ${OPTION82_PLUGIN}
 
-${LOG_PLUGIN}_OBJS=	utils.o log_plugin.o
+${LOG_PLUGIN}_OBJS=	utils.o log_plugin.o dhcp_utils.o
 ${OPTION82_PLUGIN}_OBJS=	utils.o option82_plugin.o ip_checksum.o dhcp_utils.o
 ${RADIUS_PLUGIN}_OBJS=	utils.o net_utils.o radius_plugin.o dhcp_utils.o
 

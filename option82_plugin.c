@@ -1,4 +1,4 @@
-/* Copyright (c) 2007-2017 Sergey Matveychuk Yandex, LLC.  All rights
+/* Copyright (c) 2007-2012 Sergey Matveychuk Yandex, LLC.  All rights
  * reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -41,28 +41,8 @@ struct trusted_circuits {
 	 STAILQ_ENTRY(trusted_circuits) next;
 };
 
-/* returns: NULL if optin82 was not found. *optins point to End-Of-Options
- * mark (255) or pointer to option82 */
-uint8_t *
-find_option82(uint8_t *options)
-{
-	uint8_t *p = NULL;
-
-	do {
-		switch (*options) {
-		case 0:
-			options++;
-			break;
-		default:
-			options += options[1] + 2;
-		}
-	} while (*options != 255 && *options != 82);
-
-	if (*options == 82)
-		p = options;
-
-	return p;
-}
+static int link_selection_map[IF_MAX];
+static int only_for[IF_MAX];
 
 int
 option82_plugin_init(plugin_options_head_t *options_head)
@@ -71,8 +51,12 @@ option82_plugin_init(plugin_options_head_t *options_head)
 	int i, n, rid_set = 0;
 	char *p, *p1;
 	struct trusted_circuits *tc_entry;
+	struct interface *intf;
 
 	STAILQ_INIT(&trusted_head);
+	bzero(&link_selection_map, sizeof(link_selection_map));
+	for (i = 0; i < IF_MAX; i++)
+		only_for[i] = 1;
 
 	SLIST_FOREACH_SAFE(opts, options_head, next, opts_tmp) {
 		if ((p = strchr(opts->option_line, '=')) == NULL) {
@@ -92,13 +76,12 @@ option82_plugin_init(plugin_options_head_t *options_head)
 			/* is a string */
 			if (*p == '"') {
 				p++;
-				for(rid_len=0; *p != '"' && *p != '\0' && rid_len<sizeof(rid); p++,rid_len++)
-					rid[rid_len] = *p;
+				for (i = 0; *p != '"' && *p != '\0'; p++, i++)
+					rid[i] = *p;
 				if (*p != '"') {
 					logd(LOG_ERR, "option82_plugin: Syntex error in option value at line: %s", opts->option_line);
 					return 0;
 				}
-				rid[rid_len] = '\0';
 			} else if (strcasecmp(p, "0x") == 0) {
 				p += 2;
 				logd(LOG_ERR, "option82_plugin: hexadecimal is not supported yet at line: %s", opts->option_line);
@@ -156,6 +139,29 @@ option82_plugin_init(plugin_options_head_t *options_head)
 					return 0;
 				}
 			}
+		} else if (strcasecmp(opts->option_line, "enable_link_selection_for") == 0) {
+			while ((p1 = strsep(&p, " ,")) != NULL) {
+				if ((intf = get_interface_by_name(p1)) == NULL) {
+					logd(LOG_WARNING, "option82_plugin: (link_selection) interface %s is not open. Ignoring.", p1);
+					continue;
+				}
+				link_selection_map[intf->idx] = 1;
+				logd(LOG_DEBUG, "option82_plugin: link_selection suboption enabled on %s", p1);
+			}
+		} else if (strcasecmp(opts->option_line, "only_for") == 0) {
+			bzero(&only_for, sizeof(only_for));
+			logd(LOG_DEBUG, "option82_plugin: plugin enabled only for these interfaces: %s", p);
+			n = 0;
+			while ((p1 = strsep(&p, " ,")) != NULL) {
+				if ((intf = get_interface_by_name(p1)) == NULL) {
+					logd(LOG_WARNING, "option82_plugin: (only_for) interface %s is not open. Ignoring.", p1);
+					continue;
+				}
+				only_for[intf->idx] = 1;
+				n++;
+			}
+			if (n == 0)
+				logd(LOG_WARNING, "option82_plugin: (only_for) no valid interfaces found. Plugin is disabled.");
 		} else {
 			logd(LOG_ERR, "option82_plugin: Unknown option at line: %s", opts->option_line);
 			return 0;
@@ -178,18 +184,16 @@ option82_plugin_init(plugin_options_head_t *options_head)
 
 int
 option82_plugin_client_request(const struct interface *intf,
-			       uint8_t **packet, size_t *psize)
+			       struct dhcp_packet *dhcp, struct packet_headers *headers)
 {
-	struct dhcp_packet *dhcp;
-	uint8_t *buf, *p, *opt;
+	uint8_t buf[255], *p, *opt;
 	int intf_name_len, match;
 	struct trusted_circuits *tc_entry;
 
-	dhcp = (struct dhcp_packet *)(*packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD);
-	p = dhcp->options;
-	p += DHCP_COOKIE_LEN;
+	if (!only_for[intf->idx])		// Disabled in config. Ignore interface and pass the packet as is.
+		return 1;
 
-	opt = find_option82(p);
+	opt = find_option(dhcp, 82);
 	/* XXX discard if GIADDR spoofing (our address) */
 	if (*((ip_addr_t *)&dhcp->giaddr) == 0 && opt != NULL) {
 		logd(LOG_ERR, "option82_plugin: got a packet from an agent but GIADDR == 0. Dropped.");
@@ -208,51 +212,25 @@ option82_plugin_client_request(const struct interface *intf,
 			return 0;
 		}
 	} else {
-		/* Go to end of options mark */
-		while (*p != 255 && p - *packet <= *psize) {
-			p++;
-		}
-
-		/* Not found. Bad packet. */
-		if (p - *packet >= *psize) {
-			logd(LOG_ERR, "option82_plugin: Bad options format");
-			return 0;
-		}
 		intf_name_len = strlen(intf->name);
 
-		/* RFC3046 requires this check */
-		if (*psize + 4 + intf_name_len + rid_len > max_packet_size) {
-			logd(LOG_ERR, "option82_plugin: a packet will oversided after adding options82. Passed without changes.");
-			return 1;
-		}
-		buf = malloc(*psize + intf_name_len + rid_len + 6);
-		if (buf == NULL) {
-			logd(LOG_ERR, "option82_plugin: malloc error");
-			return 0;
-		}
-		memset(buf, 0, *psize + intf_name_len + rid_len + 6);
-		memcpy(buf, *packet, *psize);
-
-		p = buf + (p - *packet);
-
-		*(p++) = 82;
-		*(p++) = 4 + intf_name_len + rid_len;
-		*(p++) = 1;
-		*(p++) = intf_name_len;
+		/* insert option 82 */
+		p = buf;
+		*p++ = 1;
+		*p++ = intf_name_len;
 		memcpy(p, intf->name, intf_name_len);
 		p += intf_name_len;
-
-		*(p++) = 2;
-		*(p++) = rid_len;
+		*p++ = 2;
+		*p++ = rid_len;
 		memcpy(p, rid, rid_len);
 		p += rid_len;
-		/* End of options */
-		*p = 255;
-
-		p = *packet;
-		*packet = buf;
-		free(p);
-		*psize = *psize + intf_name_len + rid_len + 6;
+		if (link_selection_map[intf->idx]) {
+			*p++ = 5;
+			*p++ = sizeof(ip_addr_t);
+			memcpy(p, &intf->ip, sizeof(ip_addr_t));
+			p += sizeof(ip_addr_t);
+		}
+		insert_option(dhcp, 82, p - buf, buf, INSERT_OPTION_NORMAL);
 	}
 
 	return 1;
@@ -260,34 +238,27 @@ option82_plugin_client_request(const struct interface *intf,
 
 int
 option82_plugin_send_to_client(const struct sockaddr_in *server,
-			     const struct interface *intf, uint8_t **packet,
-			       size_t *psize)
+					const struct interface *intf,
+					struct dhcp_packet *dhcp, struct packet_headers *headers)
 {
-	struct dhcp_packet *dhcp;
-	struct ip *ip;
-	struct udphdr *udp;
-	uint8_t *p, *opt;
-	int rlen, opt_size = 0, match, need_strip = 0;
+	uint8_t *p;
+	int rlen, match, need_strip = 0;
 	struct trusted_circuits *tc_entry;
 
-	dhcp = (struct dhcp_packet *)(*packet + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD);
-	ip = (struct ip *)(*packet + ETHER_HDR_LEN);
-	udp = (struct udphdr *)(*packet + ETHER_HDR_LEN + sizeof(struct ip));
+	if (!only_for[intf->idx])		// Disabled in config. Ignore interface and pass the packet as is.
+		return 1;
 
-	opt = find_option82(dhcp->options + DHCP_COOKIE_LEN);
-	/* We don't find option82, drop the packet */
-	if (opt == NULL)
-		return 0;
+	/* We don't find option82, pass the packet as is */
+	if (find_option(dhcp, 82) == NULL)
+		return 1;
 	/* Find Remote ID sub-option */
-	p = opt + 2;
-	if (*p != 1 && *p != 2) {
+	p = find_suboption(dhcp, 82, 2);
+	if (p == NULL) {
 		logd(LOG_ERR, "option82_plugin: bad sub-option. The packet dropped.");
 		return 0;
 	}
-	if (*p == 1)
-		p += *(p + 1) + 2;
-	p++;
-	rlen = *p++;
+	rlen = p[1];
+	p += 2;
 	/* Check if Remote ID is our one */
 	match = 0;
 	if (rlen == rid_len && memcmp(rid, p, rid_len) == 0)
@@ -310,15 +281,8 @@ option82_plugin_send_to_client(const struct sockaddr_in *server,
 		need_strip = 1;
 
 	/* strip option82 */
-	if (need_strip || always_strip_answer) {
-		opt_size = opt[1] + 2;
-		memmove(opt, opt + opt_size, *psize - (opt + opt_size - *packet));
-		*psize -= opt_size;
-		udp->uh_ulen = htons(ntohs(udp->uh_ulen) - opt_size);
-		ip->ip_len = htons(ntohs(ip->ip_len) - opt_size);
-		ip->ip_sum = 0;
-		ip->ip_sum = htons(ip_checksum((const char *)ip, sizeof(struct ip)));
-	}
+	if (need_strip || always_strip_answer)
+		remove_option(dhcp, 82);
 	return 1;
 }
 
