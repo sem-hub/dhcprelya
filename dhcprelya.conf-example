@@ -1,13 +1,14 @@
 [servers]
 # If this section is a first one, [servers] keyword is optional.
 #
-# You can include an external file here (only in this section)
-#file=/path/to/file
 # If you want to bind specified IP address on interface (in case,
 # if there are a few addresses on it) use bind_ip BEFORE server
 # specifications. Otherwise first IP address on interfcae will be used.
 #bind_ip vlan1 1.1.1.1
 #bind_ip vlan2 2.2.2.2
+# You can include an external file here (only in this section) where
+# specified server-interfases lines.
+#file=/path/to/file
 # Specify DHCP servers for requests from the interfaces.
 dhcpserver1 vlan1 vlan2 vlan3
 # Use non-standard port for this server. DHCP requests from vlan1 interface 
