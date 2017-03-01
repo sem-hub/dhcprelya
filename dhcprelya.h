@@ -136,6 +136,9 @@ struct ip_binding_map {
 /* Global options */
 extern unsigned debug, max_packet_size;
 
+struct interface *get_interface_by_idx(int idx);
+struct interface *get_interface_by_name(char *iname);
+
 /* ip_checksum.c */
 short ip_checksum(const char *packet, int count);
 short udp_checksum(const char *packet);
@@ -149,6 +152,17 @@ int get_bool_value(const char *str);
 int get_mac(const char *if_name, char *if_mac);
 int get_ip(const char *iname, ip_addr_t *ip, const ip_addr_t *preferable);
 
+/* dhcp_utils.c */
+#define INSERT_OPTION_NORMAL 0		// No replace, no stack
+#define INSERT_OPTION_OVERRIDE 1	// If duplicate found - override
+#define INSERT_OPTION_STACK 2		// No search for duplicate, just insert
+
+uint8_t *find_option(struct dhcp_packet *dhcp, uint8_t option_id);
+uint8_t *find_suboption(struct dhcp_packet *dhcp, uint8_t option_id, uint8_t suboption_id);
+int insert_option(struct dhcp_packet *dhcp, uint8_t option_id, uint8_t len, uint8_t *option, int flags);
+int remove_option(struct dhcp_packet *dhcp, uint8_t option_id);
+int get_dhcp_len(struct dhcp_packet *dhcp);
+
 /* Plugins support */
 #define MAX_PLUGINS 20
 #define PLUGIN_PATH "/usr/local/lib/"
@@ -157,9 +171,7 @@ struct plugin_options {
 	char *option_line;
 	SLIST_ENTRY(plugin_options) next;
 };
-typedef
-SLIST_HEAD(opt_head, plugin_options)
-plugin_options_head_t;
+typedef SLIST_HEAD(opt_head, plugin_options) plugin_options_head_t;
 
 /* Be aware:
  * 

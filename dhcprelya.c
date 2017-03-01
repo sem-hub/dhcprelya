@@ -120,6 +120,24 @@ find_interface(const ip_addr_t addr)
 	return i;
 }
 
+struct interface *
+get_interface_by_idx(int idx)
+{
+	if (idx >= if_num || idx < 0)
+		return NULL;
+	return ifs[idx];
+}
+
+struct interface *
+get_interface(char *iname)
+{
+	int i;
+	for (i = 0; i < if_num; i++)
+		if (strcmp(ifs[i]->name, iname) == 0)
+			return ifs[i];
+	return NULL;
+}
+
 ip_addr_t *
 get_bound_ip(const char *iname)
 {

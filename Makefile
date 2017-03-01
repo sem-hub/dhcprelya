@@ -1,5 +1,5 @@
 PROGNAME=	dhcprelya
-OBJS=		dhcprelya.o utils.o net_utils.o ip_checksum.o
+OBJS=		dhcprelya.o utils.o net_utils.o ip_checksum.o dhcp_utils.o
 HEADER=		dhcprelya.h
 LIBS=		-lpcap -lutil -lradius -pthread
 CFLAGS+=	-Wall -fPIC
@@ -12,8 +12,8 @@ OPTION82_PLUGIN=	${PROGNAME}_option82_plugin.so
 ALL_PLUGINS=	${LOG_PLUGIN} ${RADIUS_PLUGIN} ${OPTION82_PLUGIN}
 
 ${LOG_PLUGIN}_OBJS=	utils.o log_plugin.o
-${OPTION82_PLUGIN}_OBJS=	utils.o option82_plugin.o ip_checksum.o
-${RADIUS_PLUGIN}_OBJS=	utils.o net_utils.o radius_plugin.o
+${OPTION82_PLUGIN}_OBJS=	utils.o option82_plugin.o ip_checksum.o dhcp_utils.o
+${RADIUS_PLUGIN}_OBJS=	utils.o net_utils.o radius_plugin.o dhcp_utils.o
 
 .if defined(DEBUG)
 DEBUG_FLAGS=	-g

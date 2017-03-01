@@ -246,41 +246,28 @@ radius_plugin_send_to_client(const struct sockaddr_in *server,
 		 const struct interface *intf, uint8_t **buf, size_t *psize)
 {
 	pthread_t tid;
-	int i, found = 0;
-	char *b;
+	int i;
+	uint8_t *b;
+	size_t dhcp_len;
 
-	/* Send accounting to RADIUS only on DHCPACK messages */
-	i = ETHER_HDR_LEN + DHCP_FIXED_LEN + DHCP_COOKIE_LEN;
-	while (i < *psize && (*buf)[i] != 255) {
-		if ((*buf)[i] == 53) {
-			found = 1;
-			break;
-		}
-		if ((*buf)[i] == 0) {
-			i++;
-			continue;
-		}
-		i++;
-		i += (*buf)[i];
-	}
-
-	/* It's not DHCPACK. Just pass the packet. */
-	if (!found)
+	b = find_option((struct dhcp_packet *)*buf + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, 53);
+	/* If it's not DHCPACK. Just pass the packet. */
+	if (!b || b[2] != 5)
 		return 1;
 
 	/* Look for interfaces we should do radius request */
-	found = 0;
 	for (i = 0; i < only_for_num; i++)
 		if (strcmp(only_for[i], intf->name) == 0)
-			found = 1;
+			break;
 
-	if (only_for_num == 0 || found) {
-		b = malloc(*psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
+	if (only_for_num == 0 || i < only_for_num) {
+		dhcp_len = get_dhcp_len((struct dhcp_packet *)*buf + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD);
+		b = malloc(dhcp_len);
 		if (b == NULL) {
 			logd(LOG_ERR, "radius_plugin: malloc error");
 			return 0;
 		}
-		memcpy(b, *buf + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, *psize - (ETHER_HDR_LEN + DHCP_UDP_OVERHEAD));
+		memcpy(b, *buf + ETHER_HDR_LEN + DHCP_UDP_OVERHEAD, dhcp_len);
 		pthread_create(&tid, NULL, send_acct, b);
 		pthread_detach(tid);
 	}

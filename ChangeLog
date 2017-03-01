@@ -1,3 +1,8 @@
+Changes:
+
+* dhcp_utils.c - utils for working with DHCP options and get_dhcp_len()
+* add get_interface_by_idx() and get_interface_by_name()
+
 dhcprelya v5.1 (Release date: 2017-03-01)
 ==============
 
