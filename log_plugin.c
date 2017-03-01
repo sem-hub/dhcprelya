@@ -153,6 +153,17 @@ printHexColon(uint8_t *data, int len)
 	}
 }
 
+const char*
+print_tok(const struct tok *t, uint8_t v)
+{
+	while (t->s != NULL) {
+		if (t->v == v)
+			return t->s;
+		t++;
+	}
+	return "unknown";
+}
+
 void
 print_word(uint8_t *data)
 {
@@ -309,8 +320,8 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 				if (i != 0)
 					printf(",");
 				printf("%s", inet_ntop(AF_INET,
-					data + j + 2 + i * 4,
-					buf, sizeof(buf)));
+						data + j + 2 + i * 4,
+						buf, sizeof(buf)));
 			}
 			break;
 
@@ -431,7 +442,14 @@ print_dhcp_packet(struct dhcp_packet *dhcp, int data_len)
 			break;
 
 		case 61:	/* Client identifier */
-			printHexColon(data + j + 2, data[j + 1]);
+			if (data[j + 2] != 0) {
+				printf("%s ", print_tok(arp2str, data[j + 2]));
+				printHexColon(data + j + 3, data[j + 1] - 1);
+			} else {
+				strlcpy(buf, (char *)&data[j + 3], data[j + 1]-1);
+				buf[data[j + 1] - 1] = 0;
+				printf("%s", buf);
+			}
 			break;
 
 		case 81:	/* Client FQDN */

@@ -339,3 +339,19 @@ const char *htypes[] = {
 	 /* 20 */ "Serial Line",
 	 /* 21 */ "ATM"
 };
+
+struct tok {
+	uint8_t v;		/* value */
+	const char *s;		/* string */
+};
+
+/* ARP Hardware types, for Client-ID option */
+static const struct tok arp2str[] = {
+	{ 0x1,	"ether" },
+	{ 0x6,	"ieee802" },
+	{ 0x7,	"arcnet" },
+	{ 0xf,	"frelay" },
+	{ 0x17,	"strip" },
+	{ 0x18,	"ieee1394" },
+	{ 0, NULL }
+};
