@@ -129,7 +129,7 @@ get_interface_by_idx(int idx)
 }
 
 struct interface *
-get_interface(char *iname)
+get_interface_by_name(char *iname)
 {
 	int i;
 	for (i = 0; i < if_num; i++)
