@@ -997,7 +997,7 @@ main(int argc, char *argv[])
 		process_queue(q);
 	}
 
-	/* Destroy polugins */
+	/* Destroy plugins */
 	for (i = 0; i < plugins_number; i++) {
 		if (plugins[i]->destroy)
 			(plugins[i]->destroy) ();
