@@ -322,7 +322,7 @@ sanity_check(const char *packet, const unsigned len)
 		logd(LOG_ERR, "wrong ether type -- packet discarded");
 		return 0;
 	}
-	if (udp->uh_ulen < DHCP_FIXED_NON_UDP + DHCP_COOKIE_LEN + 1) {
+	if (ntohs(udp->uh_ulen) < DHCP_FIXED_NON_UDP + DHCP_COOKIE_LEN + 1) {
 		logd(LOG_ERR, "not enough DHCP data -- packet ignore");
 		return 0;
 	}
