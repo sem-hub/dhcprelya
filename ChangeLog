@@ -1,3 +1,10 @@
+dhcprelya v6.1 (Release date: 2017-12-13)
+==============
+
+Changes:
+
+* Fix udp->uh_ulen check. Missed ntohs(). (lytboris@yandex-team.ru)
+
 dhcprelya v6.0 (Release date: 2017-03-03)
 ==============
 
