@@ -1,3 +1,11 @@
+dhcprelya v6.1.1 (Release date: 2020-07-30)
+==============
+
+Changes:
+
+==============
+* Remove mistyped '$' in Makefile (Dmitriy Dubinin <_dmitriy@mail.ru>)
+
 dhcprelya v6.1 (Release date: 2017-12-13)
 ==============
 
