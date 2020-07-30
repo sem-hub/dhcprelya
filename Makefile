@@ -40,7 +40,7 @@ clean:
 install: install-exec install-plugins
 
 install-exec: ${PROGNAME}
-	install ${STRIP_FLAG} -m 555 ${PROGNAME} ${DESTDIR$}${PREFIX}/sbin/
+	install ${STRIP_FLAG} -m 555 ${PROGNAME} ${DESTDIR}${PREFIX}/sbin/
 
 install-plugins: ${ALL_PLUGINS}
 .for _plugin in ${ALL_PLUGINS}
