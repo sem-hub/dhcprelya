@@ -210,7 +210,7 @@ open_interface(const char *iname)
 
 	if ((ifs[if_num]->cap = pcap_open_live(iname, max_packet_size, 0, 100, errbuf)) == NULL)
 		process_error(EX_RES, "pcap_open_live(%s): %s", iname, errbuf);
-	sprintf(filtstr, "udp and dst port bootps and not ether src %s",
+	sprintf(filtstr, "udp and dst port bootps and src port bootpc and not ether src %s",
 		ether_ntoa_r((struct ether_addr*)ifs[if_num]->mac, buf));
 	if (pcap_compile(ifs[if_num]->cap, &fp, filtstr, 0, 0) < 0)
 		process_error(EX_RES, "pcap_compile");
